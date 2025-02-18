@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boleto de Compra-Venta</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .pdf-container {
+            width: 21cm;
+            height: 29.7cm;
+            background: white;
+            padding: 30px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            font-family: Arial, sans-serif;
+        }
+        .title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 15px;
+        }
+        .label {
+            font-weight: bold;
+        }
+        .input-field {
+            display: inline-block;
+            width: calc(100% - 120px);
+            border: none;
+            border-bottom: 1px solid black;
+            font-size: 14px;
+            outline: none;
+        }
+        .firma-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+        }
+        .firma {
+            width: 45%;
+            text-align: center;
+            border-top: 1px solid black;
+            padding-top: 5px;
+        }
+        .buttons {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .button {
+            padding: 10px;
+            background: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .pdf-container {
+                width: 100%;
+                max-width: 21cm;
+                height: auto;
+                padding: 15px;
+                box-shadow: none;
+            }
+            .input-field {
+                width: 100%;
+                margin-top: 5px;
+            }
+            .firma-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .firma {
+                width: 100%;
+                margin-top: 20px;
+            }
+        }
+        
+        @media print {
+            .pdf-container {
+                width: 21cm !important;
+                height: 29.7cm !important;
+                box-shadow: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="pdf-container" id="formulario">
+        <div class="title">BOLETO COMPRA VENTA</div>
+        <div class="section">
+            <span class="label">Fecha:</span> <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">Recibí del Sr/a:</span> <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">Doc. Id. Tipo:</span> <input type="text" class="input-field" style="width: 20%;"> N° <input type="text" class="input-field" style="width: 30%;"> Teléfono: <input type="text" class="input-field" style="width: 30%;">
+        </div>
+        <div class="section">
+            <span class="label">Domiciliado en:</span> <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">La cantidad de Pesos (en letras):</span> <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">Son $:</span> <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <p>Por la venta de un automotor usado, en las condiciones vistas y que se encuentra, el cual ha sido revisado y probado a satisfacción del comprador.</p>
+        </div>
+        <div class="section">
+            <span class="label">Dominio:</span> <input type="text" class="input-field"> Marca: <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">Modelo:</span> <input type="text" class="input-field"> Tipo: <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">N° Motor:</span> <input type="text" class="input-field"> N° Chasis: <input type="text" class="input-field">
+        </div>
+        <div class="section">
+            <span class="label">Observaciones:</span>
+            <textarea class="input-field" style="width: 100%; height: 50px;"></textarea>
+        </div>
+        <div class="firma-container">
+            <div class="firma">Firma del Comprador</div>
+            <div class="firma">Firma del Vendedor</div>
+        </div>
+    </div>
+    <div class="buttons">
+        <button class="button" onclick="generarPDF()">Generar PDF</button>
+    </div>
+    <script>
+        function generarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const elemento = document.getElementById('formulario');
+            html2canvas(elemento, { scale: 2 }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = 210;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                doc.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                doc.save('boleto_compra_venta.pdf');
+            });
+        }
+    </script>
+</body>
+</html>
