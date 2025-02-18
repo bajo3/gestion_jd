@@ -21,6 +21,8 @@
             padding: 30px;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
             font-family: Arial, sans-serif;
+            transform: scale(1);
+            transform-origin: top left;
         }
         .title {
             text-align: center;
@@ -64,7 +66,8 @@
             border: none;
             cursor: pointer;
         }
-        
+
+        /* Estilos responsivos */
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -75,6 +78,7 @@
                 height: auto;
                 padding: 15px;
                 box-shadow: none;
+                transform: scale(0.8);
             }
             .input-field {
                 width: 100%;
@@ -89,13 +93,23 @@
                 margin-top: 20px;
             }
         }
-        
-        @media print {
-            .pdf-container {
-                width: 21cm !important;
-                height: 29.7cm !important;
-                box-shadow: none !important;
-            }
+
+        /* Estilos para forzar el diseño de escritorio al generar el PDF */
+        .escritorio .pdf-container {
+            width: 21cm !important;
+            height: 29.7cm !important;
+            padding: 30px !important;
+            transform: scale(1) !important;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1) !important;
+        }
+        .escritorio .input-field {
+            width: calc(100% - 120px) !important;
+        }
+        .escritorio .firma-container {
+            flex-direction: row !important;
+        }
+        .escritorio .firma {
+            width: 45% !important;
         }
     </style>
 </head>
@@ -145,17 +159,34 @@
         <button class="button" onclick="generarPDF()">Generar PDF</button>
     </div>
     <script>
-        function generarPDF() {
+        async function generarPDF() {
+            const elemento = document.getElementById('formulario');
+
+            // Guardar el viewport original
+            const originalViewport = document.querySelector('meta[name="viewport"]').content;
+
+            // Cambiar el viewport para forzar el estilo de escritorio
+            document.querySelector('meta[name="viewport"]').content = 'width=1280';
+
+            // Agregar la clase .escritorio para forzar el estilo de escritorio
+            elemento.classList.add('escritorio');
+
+            // Generar el PDF
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
-            const elemento = document.getElementById('formulario');
-            html2canvas(elemento, { scale: 2 }).then(canvas => {
+
+            // Capturar el contenido con html2canvas
+            await html2canvas(elemento, { scale: 3 }).then(canvas => {
                 const imgData = canvas.toDataURL('image/png');
-                const imgWidth = 210;
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                doc.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                doc.addImage(imgData, 'PNG', 0, 0, 210, 297);
                 doc.save('boleto_compra_venta.pdf');
             });
+
+            // Restaurar el viewport original
+            document.querySelector('meta[name="viewport"]').content = originalViewport;
+
+            // Restaurar el diseño responsivo
+            elemento.classList.remove('escritorio');
         }
     </script>
 </body>
