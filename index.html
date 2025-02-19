@@ -3,190 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boleto de Compra-Venta</title>
+    <title>Boleto Compra-Venta</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #f4f4f4;
-            padding: 20px;
-        }
-        .pdf-container {
-            width: 21cm;
-            height: 29.7cm;
-            background: white;
-            padding: 30px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
             font-family: Arial, sans-serif;
-            transform: scale(1);
-            transform-origin: top left;
-        }
-        .title {
             text-align: center;
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 20px;
         }
-        .section {
-            margin-bottom: 15px;
+        form {
+            width: 60%;
+            margin: auto;
+            text-align: left;
         }
-        .label {
-            font-weight: bold;
+        label, input {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
         }
-        .input-field {
-            display: inline-block;
-            width: calc(100% - 120px);
-            border: none;
-            border-bottom: 1px solid black;
-            font-size: 14px;
-            outline: none;
-        }
-        .firma-container {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 40px;
-        }
-        .firma {
-            width: 45%;
-            text-align: center;
-            border-top: 1px solid black;
-            padding-top: 5px;
-        }
-        .buttons {
-            text-align: center;
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
             margin-top: 20px;
-        }
-        .button {
-            padding: 10px;
-            background: #007BFF;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        /* Estilos responsivos */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            .pdf-container {
-                width: 100%;
-                max-width: 21cm;
-                height: auto;
-                padding: 15px;
-                box-shadow: none;
-                transform: scale(0.8);
-            }
-            .input-field {
-                width: 100%;
-                margin-top: 5px;
-            }
-            .firma-container {
-                flex-direction: column;
-                align-items: center;
-            }
-            .firma {
-                width: 100%;
-                margin-top: 20px;
-            }
-        }
-
-        /* Estilos para forzar el diseño de escritorio al generar el PDF */
-        .escritorio .pdf-container {
-            width: 21cm !important;
-            height: 29.7cm !important;
-            padding: 30px !important;
-            transform: scale(1) !important;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1) !important;
-        }
-        .escritorio .input-field {
-            width: calc(100% - 120px) !important;
-        }
-        .escritorio .firma-container {
-            flex-direction: row !important;
-        }
-        .escritorio .firma {
-            width: 45% !important;
         }
     </style>
 </head>
 <body>
-    <div class="pdf-container" id="formulario">
-        <div class="title">BOLETO COMPRA VENTA</div>
-        <div class="section">
-            <span class="label">Fecha:</span> <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">Recibí del Sr/a:</span> <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">Doc. Id. Tipo:</span> <input type="text" class="input-field" style="width: 20%;"> N° <input type="text" class="input-field" style="width: 30%;"> Teléfono: <input type="text" class="input-field" style="width: 30%;">
-        </div>
-        <div class="section">
-            <span class="label">Domiciliado en:</span> <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">La cantidad de Pesos (en letras):</span> <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">Son $:</span> <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <p>Por la venta de un automotor usado, en las condiciones vistas y que se encuentra, el cual ha sido revisado y probado a satisfacción del comprador.</p>
-        </div>
-        <div class="section">
-            <span class="label">Dominio:</span> <input type="text" class="input-field"> Marca: <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">Modelo:</span> <input type="text" class="input-field"> Tipo: <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">N° Motor:</span> <input type="text" class="input-field"> N° Chasis: <input type="text" class="input-field">
-        </div>
-        <div class="section">
-            <span class="label">Observaciones:</span>
-            <textarea class="input-field" style="width: 100%; height: 50px;"></textarea>
-        </div>
-        <div class="firma-container">
-            <div class="firma">Firma del Comprador</div>
-            <div class="firma">Firma del Vendedor</div>
-        </div>
-    </div>
-    <div class="buttons">
-        <button class="button" onclick="generarPDF()">Generar PDF</button>
-    </div>
+    <h2>Boleto Compra-Venta</h2>
+    <form id="formulario">
+        <h3>Datos del Comprador</h3>
+        <label>Fecha: <input type="text" id="fecha"></label>
+        <label>Recibí del Sr/a: <input type="text" id="recibido"></label>
+        <label>Doc. Id. Tipo: <input type="text" id="tipo_doc"></label>
+        <label>N°: <input type="text" id="numero_doc"></label>
+        <label>Teléfono: <input type="text" id="telefono"></label>
+        <label>Domicilio: <input type="text" id="domicilio"></label>
+        <label>Son $: <input type="text" id="cantidad_num"></label>
+        <h3>Datos del Automotor</h3>
+        <label>Dominio: <input type="text" id="dominio"></label>
+        <label>Marca: <input type="text" id="marca"></label>
+        <label>Modelo: <input type="text" id="modelo"></label>
+        <label>Tipo: <input type="text" id="tipo"></label>
+        <label>N° Motor: <input type="text" id="n_motor"></label>
+        <label>N° Chasis: <input type="text" id="n_chasis"></label>
+        <label>Observaciones: <input type="text" id="observaciones"></label>
+
+        <h3>Datos del Vendedor</h3>
+        <label>Nombre y Apellido: <input type="text" id="nombre_vendedor"></label>
+        <label>Domicilio: <input type="text" id="domicilio_vendedor"></label>
+        <label>Doc. Id. Tipo: <input type="text" id="tipo_doc_vendedor"></label>
+        <label>N°: <input type="text" id="numero_doc_vendedor"></label>
+        <label>Teléfono: <input type="text" id="telefono_vendedor"></label>
+    </form>
+
+    <button onclick="generarPDF()">Generar PDF</button>
+
     <script>
         async function generarPDF() {
-            const elemento = document.getElementById('formulario');
-
-            // Guardar el viewport original
-            const originalViewport = document.querySelector('meta[name="viewport"]').content;
-
-            // Cambiar el viewport para forzar el estilo de escritorio
-            document.querySelector('meta[name="viewport"]').content = 'width=1280';
-
-            // Agregar la clase .escritorio para forzar el estilo de escritorio
-            elemento.classList.add('escritorio');
-
-            // Generar el PDF
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
+            const doc = new jsPDF();
 
-            // Capturar el contenido con html2canvas
-            await html2canvas(elemento, { scale: 3 }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                doc.addImage(imgData, 'PNG', 0, 0, 210, 297);
-                doc.save('boleto_compra_venta.pdf');
-            });
+            // Obtener valores del formulario
+            const fecha = document.getElementById("fecha").value;
+            const recibido = document.getElementById("recibido").value;
+            const tipoDoc = document.getElementById("tipo_doc").value;
+            const numeroDoc = document.getElementById("numero_doc").value;
+            const telefono = document.getElementById("telefono").value;
+            const domicilio = document.getElementById("domicilio").value;
+            const cantidadNum = document.getElementById("cantidad_num").value;
+            const dominio = document.getElementById("dominio").value;
+            const marca = document.getElementById("marca").value;
+            const modelo = document.getElementById("modelo").value;
+            const tipo = document.getElementById("tipo").value;
+            const nMotor = document.getElementById("n_motor").value;
+            const nChasis = document.getElementById("n_chasis").value;
+            const observaciones = document.getElementById("observaciones").value;
+            const nombreVendedor = document.getElementById("nombre_vendedor").value;
+            const domicilioVendedor = document.getElementById("domicilio_vendedor").value;
+            const tipoDocVendedor = document.getElementById("tipo_doc_vendedor").value;
+            const numeroDocVendedor = document.getElementById("numero_doc_vendedor").value;
+            const telefonoVendedor = document.getElementById("telefono_vendedor").value;
 
-            // Restaurar el viewport original
-            document.querySelector('meta[name="viewport"]').content = originalViewport;
+            // Encabezado
+            doc.setFontSize(14);
+            doc.text("BOLETO COMPRA VENTA", 70, 15);
+            doc.setFontSize(11);
+            doc.text(`____________________ de ______________ de 2025`, 50, 25);
+            doc.text(`Recibí del Sr/a: ${recibido}`, 20, 35);
+            doc.text(`Doc. Id. Tipo: ${tipoDoc}  Nº: ${numeroDoc}  Teléfono: ${telefono}`, 20, 45);
+            doc.text(`Domicilio: ${domicilio}`, 20, 55);
+            doc.text(`La cantidad de pesos $: ${cantidadNum}`, 20, 65);
 
-            // Restaurar el diseño responsivo
-            elemento.classList.remove('escritorio');
+            // Datos del Automotor
+            doc.text("Datos del Automotor", 20, 75);
+            doc.text(`Dominio: ${dominio}`, 20, 85);
+            doc.text(`Marca: ${marca}  Modelo: ${modelo}`, 20, 95);
+            doc.text(`Tipo: ${tipo}  Nº Motor: ${nMotor}  Nº Chasis: ${nChasis}`, 20, 105);
+            doc.text(`Observaciones: ${observaciones}`, 20, 115, { maxWidth: 170 });
+
+            // Datos del vendedor
+            doc.text("Datos del Vendedor", 20, 130);
+            doc.text(`Nombre: ${nombreVendedor}`, 20, 140);
+            doc.text(`Domicilio: ${domicilioVendedor}`, 20, 150);
+            doc.text(`Doc. Id. Tipo: ${tipoDocVendedor}  Nº: ${numeroDocVendedor}`, 20, 160);
+            doc.text(`Teléfono: ${telefonoVendedor}`, 20, 170);
+
+            // Espacio para firmas
+            doc.text("____________________________", 20, 190);
+            doc.text("Firma del Comprador", 20, 195);
+            doc.text("____________________________", 120, 190);
+            doc.text("Firma del Vendedor", 120, 195);
+
+            // Agregar logo
+            const logo = new Image();
+            logo.src = "logo.png";
+            logo.onload = function () {
+                doc.addImage(logo, "PNG", 70, 210, 70, 20);
+                doc.save("boleto_compra_venta.pdf");
+            };
         }
     </script>
 </body>
