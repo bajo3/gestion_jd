@@ -1,6 +1,7 @@
 async function generarDateroPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
+    
   
     // Obtener campos
     const get = id => document.getElementById(id).value;

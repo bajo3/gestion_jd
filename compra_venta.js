@@ -1,6 +1,7 @@
 async function generarPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
+    
 
     // Obtener valores del formulario
     const fecha = document.getElementById("fecha").value;

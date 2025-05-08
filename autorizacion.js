@@ -2,6 +2,7 @@ async function generarAutorizacionPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
   
+    
     // Obtener valores del formulario
     const diasValidos = document.getElementById("dias_validos").value;
     const lugarFecha = document.getElementById("lugar_fecha").value;
