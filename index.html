@@ -1,43 +1,60 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boleto Compra-Venta</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Generador de Documentos</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <h2>Boleto Compra-Venta</h2>
-    <form id="formulario">
-        <h3>Datos del Comprador</h3>
-        <label>Fecha: <input type="text" id="fecha"></label>
-        <label>Recibí del Sr/a: <input type="text" id="recibido"></label>
-        <label>Doc. Id. Tipo: <input type="text" id="tipo_doc"></label>
-        <label>N°: <input type="text" id="numero_doc"></label>
-        <label>Teléfono: <input type="text" id="telefono"></label>
-        <label>Domicilio: <input type="text" id="domicilio"></label>
-        <label>Son $: <input type="text" id="cantidad_num"></label>
-        
-        <h3>Datos del Automotor</h3>
-        <label>Dominio: <input type="text" id="dominio"></label>
-        <label>Marca: <input type="text" id="marca"></label>
-        <label>Modelo: <input type="text" id="modelo"></label>
-        <label>Tipo: <input type="text" id="tipo"></label>
-        <label>N° Motor: <input type="text" id="n_motor"></label>
-        <label>N° Chasis: <input type="text" id="n_chasis"></label>
-        <label>Observaciones: <input type="text" id="observaciones"></label>
 
-        <h3>Datos del Vendedor</h3>
-        <label>Nombre y Apellido: <input type="text" id="nombre_vendedor"></label>
-        <label>Domicilio: <input type="text" id="domicilio_vendedor"></label>
-        <label>Doc. Id. Tipo: <input type="text" id="tipo_doc_vendedor"></label>
-        <label>N°: <input type="text" id="numero_doc_vendedor"></label>
-        <label>Teléfono: <input type="text" id="telefono_vendedor"></label>
-    </form>
+    <nav class="navbar">
+        <div class="logo">🚗 Jesus Diaz Automotores</div>
+        <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="index.html">Inicio</a></li>
+          <li><a href="compra_venta.html">Compra y Venta</a></li>
+          <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
+          <li><a href="datero.html">Datero</a></li>
+          <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+        </ul>
+      </nav>
+      
 
-    <button onclick="generarPDF()">Generar PDF</button>
+      <main>
+        <section class="hero">
+          <h1>🚗 Bienvenido a Jesús Díaz Automotores</h1>
+          <p>Generá documentos esenciales para la compra, venta y conducción de vehículos de forma rápida y segura.</p>
+          <div class="hero-buttons">
+            <a href="compra_venta.html" class="btn">📄 Compra y Venta</a>
+            <a href="autorizacion_conduccion.html" class="btn">📝 Autorización de Conducción</a>
+            <a href="datero.html" class="btn">📋 Datero Vehicular</a>
+          </div>
+        </section>
+      
+        <section class="features">
+          <div class="feature">
+            <h3>✔️ Documentos legales</h3>
+            <p>Plantillas listas para imprimir y presentar.</p>
+          </div>
+          <div class="feature">
+            <h3>⚡ Rápido y simple</h3>
+            <p>En minutos completás tus datos y generás el archivo.</p>
+          </div>
+          <div class="feature">
+            <h3>🔒 Seguro y confiable</h3>
+            <p>Usado diariamente por nuestra agencia y nuestros clientes.</p>
+          </div>
+        </section>
+      </main>
 
-    <script src="script.js"></script>
+  <script>
+  function toggleMenu() {
+    const nav = document.getElementById('navLinks');
+    nav.classList.toggle('active');
+  }
+</script>
+
+
 </body>
 </html>
