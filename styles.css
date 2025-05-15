@@ -94,6 +94,44 @@
     gap: 20px;
     flex-wrap: wrap;
   }
+
+  .external-links {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+}
+
+.external-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: #007bff;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  width: 140px;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.external-link i {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.external-link span {
+  font-weight: 600;
+  text-align: center;
+}
+
+.external-link:hover {
+  transform: translateY(-4px);
+  background-color: #f0f8ff;
+}
+
   
   .btn {
     background-color: #007bff;
