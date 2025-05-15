@@ -1,7 +1,6 @@
 async function generarPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    
 
     // Obtener valores del formulario
     const fecha = document.getElementById("fecha").value;
@@ -22,7 +21,9 @@ async function generarPDF() {
     const numeroDocVendedor = document.getElementById("numero_doc_vendedor").value;
     const telefonoVendedor = document.getElementById("telefono_vendedor").value;
 
-    const montoFormateado = Number(cantidadNum).toLocaleString('es-AR');
+    // Limpieza y formato del monto
+    const montoLimpio = cantidadNum.replace(/\./g, '').replace(',', '.');
+    const montoFormateado = Number(montoLimpio).toLocaleString('es-AR');
 
     // Encabezado
     doc.setFont("helvetica", "bold");
@@ -84,7 +85,7 @@ async function generarPDF() {
     doc.text("____________________________", 120, 185);
     doc.text("Firma del Vendedor", 120, 190);
 
-    // Logo y descarga segura
+    // Logo
     const logo = new Image();
     logo.src = "logo.png";
 
@@ -106,6 +107,5 @@ async function generarPDF() {
         guardarPDF();
     };
 
-    // Backup por si ningún evento se dispara
     setTimeout(() => guardarPDF(), 2000);
 }

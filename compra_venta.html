@@ -8,53 +8,61 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    
     <nav class="navbar">
         <div class="logo">🚗 Jesus Diaz Automotores</div>
         <button class="nav-toggle" onclick="toggleMenu()">☰</button>
         <ul class="nav-links" id="navLinks">
-          <li><a href="index.html">Inicio</a></li>
-          <li><a href="compra_venta.html">Compra y Venta</a></li>
-          <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
-          <li><a href="datero.html">Datero</a></li>
-          <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+            <li><a href="index.html">Inicio</a></li>
+            <li><a href="compra_venta.html">Compra y Venta</a></li>
+            <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
+            <li><a href="datero.html">Datero</a></li>
+            <li><a href="https://www.dnrpa.gov.ar/portal_dnrpa/" target="_blank">📄 DNRPA</a></li>
+            <li><a href="https://app.arba.gov.ar/AvisoDeudas/?imp=1" target="_blank">💸 ARBA</a></li>
+            <li><a href="https://infraccionesba.gba.gob.ar/consulta-infraccion" target="_blank">🚔 Infracciones</a></li>
         </ul>
-      </nav>
-      <main>
-    <h2>Boleto Compra-Venta</h2>
-    <form id="formulario">
-        <h3>Datos del Comprador</h3>
-        <label>Fecha: <input type="text" id="fecha" placeholder="dd/mm/aaaa"></label>
-        <label>Nombre y Apellido: <input type="text" id="recibido"></label>
-        <label>DNI: <input type="text" id="numero_doc"></label>
-        <label>Teléfono: <input type="text" id="telefono"></label>
-        <label>Domicilio: <input type="text" id="domicilio"></label>
-        <label>Son $: <input type="text" id="cantidad_num"></label>
+    </nav>
 
-        <h3>Datos del Automotor</h3>
-        <label>Dominio: <input type="text" id="dominio"></label>
-        <label>Marca: <input type="text" id="marca"></label>
-        <label>Modelo: <input type="text" id="modelo"></label>
-        <label>Tipo: <input type="text" id="tipo"></label>
-        <label>N° Motor: <input type="text" id="n_motor"></label>
-        <label>N° Chasis: <input type="text" id="n_chasis"></label>
-        <label>Observaciones: <input type="text" id="observaciones"></label>
+    <main>
+        <h2>Boleto Compra-Venta</h2>
+        <form id="formulario">
+            <h3>Datos del Comprador</h3>
+            <label>Fecha: <input type="text" id="fecha" placeholder="dd/mm/aaaa"></label>
+            <label>Nombre y Apellido: <input type="text" id="recibido"></label>
+            <label>DNI: <input type="text" id="numero_doc"></label>
+            <label>Teléfono: <input type="text" id="telefono"></label>
+            <label>Domicilio: <input type="text" id="domicilio"></label>
+            <label>Son $: <input type="text" id="cantidad_num" oninput="formatearNumero(this)"></label>
 
-        <h3>Datos del Vendedor</h3>
-        <label>Nombre y Apellido: <input type="text" id="nombre_vendedor"></label>
-        <label>Domicilio: <input type="text" id="domicilio_vendedor"></label>
-        <label>DNI: <input type="text" id="numero_doc_vendedor"></label>
-        <label>Teléfono: <input type="text" id="telefono_vendedor"></label>
-    </form>
+            <h3>Datos del Automotor</h3>
+            <label>Dominio: <input type="text" id="dominio"></label>
+            <label>Marca: <input type="text" id="marca"></label>
+            <label>Modelo: <input type="text" id="modelo"></label>
+            <label>Tipo: <input type="text" id="tipo"></label>
+            <label>N° Motor: <input type="text" id="n_motor"></label>
+            <label>N° Chasis: <input type="text" id="n_chasis"></label>
+            <label>Observaciones: <input type="text" id="observaciones"></label>
 
-    <button onclick="generarPDF()">Generar PDF</button>
-</main>
-  <script>
-  function toggleMenu() {
-    const nav = document.getElementById('navLinks');
-    nav.classList.toggle('active');
-  }
-</script>
+            <h3>Datos del Vendedor</h3>
+            <label>Nombre y Apellido: <input type="text" id="nombre_vendedor"></label>
+            <label>Domicilio: <input type="text" id="domicilio_vendedor"></label>
+            <label>DNI: <input type="text" id="numero_doc_vendedor"></label>
+            <label>Teléfono: <input type="text" id="telefono_vendedor"></label>
+        </form>
+
+        <button onclick="generarPDF()">Generar PDF</button>
+    </main>
+
+    <script>
+        function toggleMenu() {
+            const nav = document.getElementById('navLinks');
+            nav.classList.toggle('active');
+        }
+
+        function formatearNumero(input) {
+            const valorLimpio = input.value.replace(/\D/g, '');
+            input.value = Number(valorLimpio).toLocaleString('es-AR');
+        }
+    </script>
     <script src="compra_venta.js"></script>
 </body>
 </html>
