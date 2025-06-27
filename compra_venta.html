@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <nav class="navbar">
         <div class="logo">🚗 Jesus Diaz Automotores</div>
@@ -40,7 +42,9 @@
             <label>Tipo: <input type="text" id="tipo"></label>
             <label>N° Motor: <input type="text" id="n_motor"></label>
             <label>N° Chasis: <input type="text" id="n_chasis"></label>
-            <label>Observaciones: <input type="text" id="observaciones"></label>
+            <label for="observaciones">Observaciones:</label><br />
+            <textarea id="observaciones" rows="4" style="width: 100%;"
+                placeholder="Ingresá observaciones o detalles adicionales"></textarea>
 
             <h3>Datos del Vendedor</h3>
             <label>Nombre y Apellido: <input type="text" id="nombre_vendedor"></label>
@@ -65,4 +69,5 @@
     </script>
     <script src="compra_venta.js"></script>
 </body>
+
 </html>

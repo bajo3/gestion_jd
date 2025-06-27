@@ -3,64 +3,100 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Datero - Transferencia de Unidad</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>📋 Formulario Datero - Transferencia de Vehículo</title>
+  <link rel="stylesheet" href="css/datero.css">
+  <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
-    <nav class="navbar">
-        <div class="logo">🚗 Jesus Diaz Automotores</div>
-        <button class="nav-toggle" onclick="toggleMenu()">☰</button>
-        <ul class="nav-links" id="navLinks">
-          <li><a href="index.html">Inicio</a></li>
-          <li><a href="compra_venta.html">Compra y Venta</a></li>
-          <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
-          <li><a href="datero.html">Datero</a></li>
-          <button class="nav-toggle" onclick="toggleMenu()">☰</button>
-        </ul>
-      </nav>
+  <nav class="navbar">
+    <div class="logo">🚗 Jesus Diaz Automotores</div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="index.html">Inicio</a></li>
+      <li><a href="compra_venta.html">Compra y Venta</a></li>
+      <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
+      <li><a href="datero.html">Datero</a></li>
+    </ul>
+  </nav>
 
   <main>
-    <h2>Datos para la Transferencia de una Unidad</h2>
+    <h2>📋 Formulario Datero - Transferencia de Vehículo</h2>
 
-    <form id="form-datero">
-      <h3>Datos del Titular</h3>
-      <label>Apellido y Nombre: <input type="text" id="nombre" /></label>
-      <label>DNI: <input type="text" id="dni" /></label>
-      <label>Fecha de nacimiento: <input type="text" id="fecha_nacimiento" /></label>
-      <label>Lugar de nacimiento: <input type="text" id="lugar" /></label>
-      <label>Dirección real: <input type="text" id="direccion_real" /></label>
-      <label>Dirección que figura en DNI: <input type="text" id="direccion_dni" /></label>
-      <label>Localidad: <input type="text" id="localidad" /></label>
-      <label>Código postal: <input type="text" id="codigo_postal" /></label>
-      <label>Provincia: <input type="text" id="provincia" /></label>
-      <label>Teléfono: <input type="text" id="telefono" /></label>
-      <label>Celular: <input type="text" id="celular" /></label>
-      <label>Email: <input type="email" id="email" /></label>
-      <label>CUIL/CUIT: <input type="text" id="cuil" /></label>
-      <label>Condición fiscal: <input type="text" id="condicion_fiscal" /></label>
-      <label>Estado civil: <input type="text" id="estado_civil" /></label>
+    <form id="dateroForm" onsubmit="return false;">
+      <fieldset>
+        <legend>Datos del Comprador</legend>
+        <label>Apellido y Nombre:
+          <input type="text" id="nombre" required>
+        </label>
+        <label>DNI:
+          <input type="text" id="dni" required pattern="\d{7,8}">
+        </label>
+        <label>Fecha de Nacimiento:
+          <input type="date" id="fecha_nacimiento" required>
+        </label>
+        <label>Lugar de nacimiento:
+          <input type="text" id="lugar" required>
+        </label>
+        <label>Dirección Real:
+          <input type="text" id="direccion_real" required>
+        </label>
+        <label>Dirección según DNI:
+          <input type="text" id="direccion_dni" required>
+        </label>
+        <label>Localidad:
+          <input type="text" id="localidad" required>
+        </label>
+        <label>Código Postal:
+          <input type="text" id="codigo_postal" required>
+        </label>
+        <label>Provincia:
+          <input type="text" id="provincia" required>
+        </label>
+        <label>Teléfono:
+          <input type="tel" id="telefono" required>
+        </label>
+        <label>Celular:
+          <input type="tel" id="celular">
+        </label>
+        <label>Email:
+          <input type="email" id="email" required>
+        </label>
+        <label>CUIL/CUIT:
+          <input type="text" id="cuil" required>
+        </label>
+        <label>Condición Fiscal:
+          <input type="text" id="condicion_fiscal">
+        </label>
+        <label>Estado Civil:
+          <input type="text" id="estado_civil">
+        </label>
+      </fieldset>
 
-      <h3>Datos del Cónyuge</h3>
-      <label>Apellido y Nombre: <input type="text" id="conyuge_nombre" /></label>
-      <label>DNI: <input type="text" id="conyuge_dni" /></label>
+      <fieldset>
+        <legend>Datos del Cónyuge</legend>
+        <label>Apellido y Nombre:
+          <input type="text" id="conyuge_nombre">
+        </label>
+        <label>DNI:
+          <input type="text" id="conyuge_dni">
+        </label>
+      </fieldset>
 
+      <fieldset>
+        <legend>Datos de la Operación</legend>
+        <label>Fecha de la operación:
+          <input type="date" id="fecha_operacion" required>
+        </label>
+        <label>Dominio del vehículo:
+          <input type="text" id="dominio" required>
+        </label>
+      </fieldset>
 
-
-      <h3>Datos Finales</h3>
-      <label>Fecha de la operación: <input type="text" id="fecha_operacion" /></label>
-      <label>Dominio: <input type="text" id="dominio" /></label>
-
-      <button type="button" onclick="generarDateroPDF()">Generar PDF</button>
+      <button type="button" onclick="generarDateroPDF()">📄 Generar PDF</button>
     </form>
   </main>
-  <script>
-  function toggleMenu() {
-    const nav = document.getElementById('navLinks');
-    nav.classList.toggle('active');
-  }
-</script>
-  <script src="datero.js"></script>
+
+ <script src="datero.js"></script>
 </body>
 </html>
