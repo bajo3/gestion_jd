@@ -2,6 +2,11 @@ async function generarDateroPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
+  const mensaje = document.createElement("div");
+  mensaje.className = "pdf-message loading";
+  mensaje.textContent = "Generando PDF...";
+  document.body.appendChild(mensaje);
+
   const get = (id, length = 40) => {
     const valor = document.getElementById(id).value.trim();
     return valor || "_".repeat(length);
@@ -71,4 +76,8 @@ async function generarDateroPDF() {
   // Guardar con nombre personalizado
   const nombreArchivo = getNombreArchivo();
   doc.save(nombreArchivo);
+  mensaje.classList.remove("loading");
+  mensaje.classList.add("success");
+  mensaje.textContent = "PDF descargado";
+  setTimeout(() => mensaje.remove(), 3000);
 }

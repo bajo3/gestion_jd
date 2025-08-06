@@ -2,6 +2,11 @@ async function generarAutorizacionPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
+  const mensaje = document.createElement("div");
+  mensaje.className = "pdf-message loading";
+  mensaje.textContent = "Generando PDF...";
+  document.body.appendChild(mensaje);
+
   // Obtener valores del formulario
   const diasValidos = document.getElementById("dias_validos").value;
   const lugarFecha = document.getElementById("lugar_fecha").value;
@@ -86,4 +91,8 @@ async function generarAutorizacionPDF() {
 
   // Descargar PDF
   doc.save("autorizacion_para_circular.pdf");
+  mensaje.classList.remove("loading");
+  mensaje.classList.add("success");
+  mensaje.textContent = "PDF descargado";
+  setTimeout(() => mensaje.remove(), 3000);
 }

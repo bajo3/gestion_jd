@@ -294,8 +294,27 @@
       font-size: 18px;
     }
   
-    h2 {
+  h2 {
       font-size: 22px;
     }
   }
+
+.pdf-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+.pdf-message.loading {
+  background-color: #ffc107;
+}
+
+.pdf-message.success {
+  background-color: #28a745;
+}
   
