@@ -2,6 +2,11 @@ async function generarPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
+    const mensaje = document.createElement("div");
+    mensaje.className = "pdf-message loading";
+    mensaje.textContent = "Generando PDF...";
+    document.body.appendChild(mensaje);
+
     // Datos fijos del vendedor
     const nombreVendedor = "Jesus Luciano Diaz";
     const domicilioVendedor = "Piedrabuena 1578";
@@ -109,10 +114,18 @@ async function generarPDF() {
 
     let pdfGuardado = false;
 
+    function finalizarMensaje() {
+        mensaje.classList.remove("loading");
+        mensaje.classList.add("success");
+        mensaje.textContent = "PDF descargado";
+        setTimeout(() => mensaje.remove(), 3000);
+    }
+
     function guardarPDF() {
         if (!pdfGuardado) {
             doc.save(nombreArchivo);
             pdfGuardado = true;
+            finalizarMensaje();
         }
     }
 
