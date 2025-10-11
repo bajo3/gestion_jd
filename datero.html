@@ -7,6 +7,33 @@
   <link rel="stylesheet" href="css/datero.css">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Mejora de estilos locales (layout + impresión) -->
+  <style>
+    :root { --card-border:#e5e7eb; --muted:#6b7280; }
+    fieldset{
+      border:1px solid var(--card-border); border-radius:10px;
+      padding:14px 16px; margin-bottom:16px; background:#fff;
+    }
+    legend{ font-weight:600; padding:0 6px; }
+    label{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+    input,select{
+      padding:9px 10px; border:1px solid #d1d5db; border-radius:8px; outline:none;
+    }
+    input:focus,select:focus{ border-color:#111827; }
+    .grid-2{ display:grid; grid-template-columns:1fr; gap:12px; }
+    @media (min-width:768px){ .grid-2{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    .hint{ color:var(--muted); font-size:0.9rem; margin-top:6px; }
+    button{
+      padding:10px 14px; border-radius:10px; border:0; background:#111827; color:#fff; cursor:pointer;
+    }
+    button:hover{ opacity:0.92; }
+    @media print{
+      .navbar,button{ display:none!important; }
+      @page{ size:A4; margin:12mm; }
+      body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    }
+  </style>
 </head>
 <body>
 
@@ -17,53 +44,55 @@
       <li><a href="compra_venta.html">Compra y Venta</a></li>
       <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
       <li><a href="datero.html">Datero</a></li>
+      <li><a href="recibo.html">Recibo</a></li>
     </ul>
   </nav>
 
   <main>
     <h2>📋 Formulario Datero - Transferencia de Vehículo</h2>
 
-    <form id="dateroForm" onsubmit="return false;">
+    <!-- novalidate: desactiva validación nativa del navegador -->
+    <form id="dateroForm" onsubmit="return false;" novalidate>
       <fieldset>
         <legend>Datos del Comprador</legend>
         <label>Apellido y Nombre:
-          <input type="text" id="nombre" required>
+          <input type="text" id="nombre">
         </label>
         <label>DNI:
-          <input type="text" id="dni" required pattern="\d{7,8}">
+          <input type="text" id="dni">
         </label>
         <label>Fecha de Nacimiento:
-          <input type="date" id="fecha_nacimiento" required>
+          <input type="date" id="fecha_nacimiento">
         </label>
         <label>Lugar de nacimiento:
-          <input type="text" id="lugar" required>
+          <input type="text" id="lugar">
         </label>
         <label>Dirección Real:
-          <input type="text" id="direccion_real" required>
+          <input type="text" id="direccion_real">
         </label>
         <label>Dirección según DNI:
-          <input type="text" id="direccion_dni" required>
+          <input type="text" id="direccion_dni">
         </label>
         <label>Localidad:
-          <input type="text" id="localidad" required>
+          <input type="text" id="localidad">
         </label>
         <label>Código Postal:
-          <input type="text" id="codigo_postal" required>
+          <input type="text" id="codigo_postal">
         </label>
         <label>Provincia:
-          <input type="text" id="provincia" required>
+          <input type="text" id="provincia">
         </label>
         <label>Teléfono:
-          <input type="tel" id="telefono" required>
+          <input type="tel" id="telefono">
         </label>
         <label>Celular:
           <input type="tel" id="celular">
         </label>
         <label>Email:
-          <input type="email" id="email" required>
+          <input type="email" id="email">
         </label>
         <label>CUIL/CUIT:
-          <input type="text" id="cuil" required>
+          <input type="text" id="cuil">
         </label>
         <label>Condición Fiscal:
           <input type="text" id="condicion_fiscal">
@@ -86,17 +115,66 @@
       <fieldset>
         <legend>Datos de la Operación</legend>
         <label>Fecha de la operación:
-          <input type="date" id="fecha_operacion" required>
+          <input type="date" id="fecha_operacion">
         </label>
         <label>Dominio del vehículo:
-          <input type="text" id="dominio" required>
+          <input type="text" id="dominio">
         </label>
       </fieldset>
 
-      <button type="button" onclick="generarDateroPDF()">📄 Generar PDF</button>
+      <!-- AUTO QUE ENTREGA (condicional, sin validaciones) -->
+      <fieldset>
+        <legend>Auto que entrega</legend>
+        <label>¿Entrega un auto?
+          <select id="entrega_ppa" name="entrega_ppa">
+            <option value="no" selected>No</option>
+            <option value="si">Sí</option>
+          </select>
+        </label>
+
+        <div id="ppa_detalle" style="display:none; margin-top: 8px;">
+          <div class="grid-2">
+            <label>Dominio:
+              <input type="text" id="ppa_dominio" placeholder="ABC123 o AB123CD" style="text-transform: uppercase;">
+            </label>
+            <label>Marca:
+              <input type="text" id="ppa_marca">
+            </label>
+            <label>Modelo:
+              <input type="text" id="ppa_modelo">
+            </label>
+            <label>Año:
+              <input type="number" id="ppa_anio" placeholder="Año">
+            </label>
+          </div>
+          <p class="hint">Opcional — completá estos datos sólo si corresponde.</p>
+        </div>
+      </fieldset>
+
+      <button type="button" onclick="handleGenerar()">📄 Generar PDF</button>
     </form>
   </main>
 
- <script src="datero.js"></script>
+  <!-- Toggle condicional simple (sin required/pattern) -->
+  <script>
+    (function () {
+      const sel = document.getElementById('entrega_ppa');
+      const panel = document.getElementById('ppa_detalle');
+      function applyToggle() {
+        panel.style.display = (sel.value || 'no').toLowerCase() === 'si' ? 'block' : 'none';
+      }
+      const ppaDom = document.getElementById('ppa_dominio');
+      if (ppaDom) {
+        ppaDom.addEventListener('input', () => { ppaDom.value = ppaDom.value.toUpperCase(); });
+      }
+      sel.addEventListener('change', applyToggle);
+      applyToggle();
+
+      // Botón que no dispara validaciones
+      window.handleGenerar = function () { generarDateroPDF(); };
+    })();
+  </script>
+
+  <script src="datero.js"></script>
 </body>
 </html>

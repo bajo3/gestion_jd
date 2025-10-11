@@ -2,73 +2,142 @@ async function generarDateroPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  const get = (id, length = 40) => {
-    const valor = document.getElementById(id).value.trim();
-    return valor || "_".repeat(length);
-  };
-
+  // === Helpers ===
+  const get = (id) => (document.getElementById(id)?.value || "").trim();
   const getNombreArchivo = () => {
-    let nombre = document.getElementById("nombre").value.trim().toLowerCase();
+    let nombre = (document.getElementById("nombre")?.value || "").trim().toLowerCase();
     if (!nombre) nombre = "sin_nombre";
-
-    // Reemplaza espacios por guiones bajos y elimina caracteres especiales
     nombre = nombre
-      .normalize("NFD")                    // elimina acentos
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]/gi, "_")        // reemplaza caracteres no alfanuméricos
-      .replace(/_+/g, "_")                // evita dobles guiones bajos
-      .replace(/^_|_$/g, "");             // quita guiones bajos al inicio/fin
-
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
     return `datero_${nombre}.pdf`;
   };
+  const loadImageDataURL = async (url) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    } catch { return null; }
+  };
 
-  let y = 20;
-  const x = 20;
+  // === Layout ===
+  const L = 20;   // margen izq
+  const R = 190;  // x derecha útil
+  const W = R - L;
+  let y = 18;
 
-  doc.setFont("courier", "bold");
-  doc.setFontSize(14);
-  doc.text("DATOS PARA LA TRANSFERENCIA DE UNA UNIDAD", 105, y, { align: "center" });
+  // alto de línea y offsets para que el texto quede ARRIBA de la línea
+  const ROW_H   = 8;     // separación vertical entre filas
+  const LINE_DY = 3.6;   // cuánto más abajo va la línea
+  const VALUE_DY= 1.4;   // cuánto más abajo del label va el valor (queda arriba de la línea)
+  const LABEL_W = 58;    // ancho de columna etiqueta
 
-  y += 10;
-  doc.setFont("courier", "normal");
-  doc.setFontSize(12);
+  const PAGE_BOTTOM = 270;
+  const newPageIfNeeded = (rows = 1) => {
+    if (y + rows * ROW_H > PAGE_BOTTOM) { doc.addPage(); y = 20; }
+  };
 
-  // Datos personales
-  doc.text(`Apellido y Nombre: ${get("nombre", 40)}`, x, y); y += 7;
-  doc.text(`DNI: ${get("dni", 15)}`, x, y); y += 7;
-  doc.text(`Fecha de Nacimiento: ${get("fecha_nacimiento", 20)}`, x, y); y += 7;
-  doc.text(`Lugar: ${get("lugar", 30)}`, x, y); y += 7;
-  doc.text(`Dirección Real: ${get("direccion_real", 40)}`, x, y); y += 7;
-  doc.text(`Dirección en DNI: ${get("direccion_dni", 40)}`, x, y); y += 7;
-  doc.text(`Localidad: ${get("localidad", 30)}`, x, y); y += 7;
-  doc.text(`Código Postal: ${get("codigo_postal", 10)}`, x, y); y += 7;
-  doc.text(`Provincia: ${get("provincia", 25)}`, x, y); y += 7;
-  doc.text(`Teléfono: ${get("telefono", 20)}`, x, y); y += 7;
-  doc.text(`Celular: ${get("celular", 20)}`, x, y); y += 7;
-  doc.text(`Email: ${get("email", 35)}`, x, y); y += 7;
-  doc.text(`CUIL/CUIT: ${get("cuil", 15)}`, x, y); y += 7;
-  doc.text(`Condición Fiscal: ${get("condicion_fiscal", 25)}`, x, y); y += 7;
-  doc.text(`Estado Civil: ${get("estado_civil", 15)}`, x, y); y += 10;
+  // sección con banda suave
+  const section = (title) => {
+    newPageIfNeeded(3);
+    doc.setFillColor(245,245,245);
+    doc.roundedRect(L - 1.5, y - 5, W + 3, 9, 1.5, 1.5, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(12);
+    doc.text(title, L, y + 2);
+    y += 10;
+    doc.setDrawColor(200,200,200);
+    doc.line(L - 1.5, y - 4, L - 1.5 + W + 3, y - 4);
+    doc.setDrawColor(0);
+    doc.setFont("helvetica","normal"); doc.setFontSize(12);
+  };
 
-  // Cónyuge
-  doc.setFont("courier", "bold");
-  doc.text("Datos del Cónyuge", x, y); y += 7;
-  doc.setFont("courier", "normal");
-  doc.text(`Apellido y Nombre: ${get("conyuge_nombre", 40)}`, x, y); y += 7;
-  doc.text(`DNI: ${get("conyuge_dni", 15)}`, x, y); y += 10;
+  // campo alineado (texto visible arriba de la línea)
+  const field = (label, value = "") => {
+    newPageIfNeeded(1);
+    const labelX = L, labelY = y;                  // etiqueta
+    const lineX1 = L + LABEL_W + 2, lineX2 = R;    // línea
+    const lineY  = y + LINE_DY;                    // posición de línea (más abajo)
+    const valY   = y + VALUE_DY;                   // valor por arriba de la línea
 
-  // Finales
-  doc.setFont("courier", "bold");
-  doc.text("Datos Finales", x, y); y += 7;
-  doc.setFont("courier", "normal");
-  doc.text(`Fecha de la operación: ${get("fecha_operacion", 20)}`, x, y); y += 10;
+    // etiqueta
+    doc.setFont("helvetica","bold");
+    doc.text(label + ":", labelX, labelY);
 
-  // Dominio centrado y destacado
-  doc.setFont("courier", "bold");
-  doc.setFontSize(18);
-  doc.text(`Dominio: ${get("dominio", 10)}`, 105, 270, { align: "center" });
+    // línea de escritura
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(160,160,160);
+    doc.line(lineX1, lineY, lineX2, lineY);
+    doc.setDrawColor(0);
 
-  // Guardar con nombre personalizado
-  const nombreArchivo = getNombreArchivo();
-  doc.save(nombreArchivo);
+    // valor (si hay), encima de la línea
+    if (value) {
+      doc.setFont("helvetica","normal");
+      doc.text(value, lineX1 + 1.2, valY);
+    }
+
+    y += ROW_H;
+  };
+
+  // === Header con logo y título
+  try {
+    const logo = await loadImageDataURL("logo.png");
+    if (logo) doc.addImage(logo, "PNG", L, 10, 22, 10); // 22mm de ancho
+  } catch {}
+  doc.setFont("helvetica","bold"); doc.setFontSize(14);
+  doc.text("DATOS PARA LA TRANSFERENCIA DE UNA UNIDAD", 105, 18, { align: "center" });
+  y = 28;
+
+  // === Datos del Comprador
+  section("Datos del Comprador");
+  field("Apellido y Nombre", get("nombre"));
+  field("DNI", get("dni"));
+  field("Fecha de Nacimiento", get("fecha_nacimiento"));
+  field("Lugar", get("lugar"));
+  field("Dirección Real", get("direccion_real"));
+  field("Dirección en DNI", get("direccion_dni"));
+  field("Localidad", get("localidad"));
+  field("Código Postal", get("codigo_postal"));
+  field("Provincia", get("provincia"));
+  field("Teléfono", get("telefono"));
+  field("Celular", get("celular"));
+  field("Email", get("email"));
+  field("CUIL/CUIT", get("cuil"));
+  field("Condición Fiscal", get("condicion_fiscal"));
+  field("Estado Civil", get("estado_civil"));
+
+  // === Datos del Cónyuge
+  section("Datos del Cónyuge");
+  field("Apellido y Nombre", get("conyuge_nombre"));
+  field("DNI", get("conyuge_dni"));
+
+  // === Datos Finales
+  section("Datos Finales");
+  field("Fecha de la operación", get("fecha_operacion"));
+
+  // === Auto que entrega (opcional)
+  const entrega = (document.getElementById("entrega_ppa")?.value || "no").toLowerCase();
+  if (entrega === "si") {
+    section("Auto que entrega");
+    field("Dominio", (get("ppa_dominio") || "").toUpperCase());
+    field("Marca", get("ppa_marca"));
+    field("Modelo", get("ppa_modelo"));
+    field("Año", get("ppa_anio"));
+  }
+
+  // === Sello inferior
+  doc.setFont("helvetica","bold"); doc.setFontSize(16);
+  doc.text(`Dominio: ${(get("dominio") || "").toUpperCase()}`, 105, 270, { align: "center" });
+
+  // Footer
+  doc.setFontSize(9); doc.setFont("helvetica","normal"); doc.setTextColor(120);
+  doc.text("Generado por Jesús Díaz Automotores", 105, 285, { align: "center" });
+  doc.setTextColor(0);
+
+  doc.save(getNombreArchivo());
 }
