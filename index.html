@@ -20,14 +20,14 @@
   </nav>
 
       <main>
-          <section class="hero">
+        <section class="hero">
           <h1>🚗 Bienvenido a Jesús Díaz Automotores</h1>
           <p>Generá documentos esenciales para la compra, venta y conducción de vehículos de forma rápida y segura.</p>
           <div class="hero-buttons">
             <a href="compra_venta.html" class="btn">📄 Compra y Venta</a>
             <a href="autorizacion_conduccion.html" class="btn">📝 Autorización de Conducción</a>
             <a href="datero.html" class="btn">📋 Datero Vehicular</a>
-            <a href="recibo.html" class="btn">$ Recibo</a>
+            <a  href="recibo.html" class="btn">💲 Recibo</a>
           </div>
         </section>
 
@@ -48,6 +48,10 @@
     <i class="fa-solid fa-hand-holding-dollar"></i>
     <span>Lista de precios</span>
   </a>
+   <a href="https://docs.google.com/spreadsheets/d/1tpn1gbeubEnARkF2iwJIiWsK8AA3kV9QNWeEzEpzthM/edit?gid=1895596246#gid=1895596246" target="_blank" class="external-link">
+    <i class="fa-solid fa-book-open"></i>
+    <span>Lista de transferencias</span>
+  </a>
 </section>
 
       
@@ -60,6 +64,17 @@
     nav.classList.toggle('active');
   }
 </script>
+<script>
+  if (localStorage.getItem("auth") !== "ok") {
+    window.location.href = "login.html";
+  }
+
+  function logout() {
+    localStorage.removeItem("auth");
+    window.location.href = "login.html";
+  }
+</script>
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
 

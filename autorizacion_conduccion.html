@@ -60,5 +60,16 @@
 </script>
 
   <script src="autorizacion.js"></script>
+  <script>
+  if (localStorage.getItem("auth") !== "ok") {
+    window.location.href = "login.html";
+  }
+
+  function logout() {
+    localStorage.removeItem("auth");
+    window.location.href = "login.html";
+  }
+</script>
+
 </body>
 </html>

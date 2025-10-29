@@ -67,6 +67,17 @@
             input.value = Number(valorLimpio).toLocaleString('es-AR');
         }
     </script>
+    <script>
+  if (localStorage.getItem("auth") !== "ok") {
+    window.location.href = "login.html";
+  }
+
+  function logout() {
+    localStorage.removeItem("auth");
+    window.location.href = "login.html";
+  }
+</script>
+
     <script src="compra_venta.js"></script>
 </body>
 
