@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Gestión JD</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="login-container">
+    <h1>Iniciar sesión</h1>
+    <form id="loginForm">
+      <label>Usuario</label>
+      <input type="text" id="user" required>
+      <label>Contraseña</label>
+      <input type="password" id="pass" required>
+      <button type="submit" class="btn">Entrar</button>
+      <p id="msg"></p>
+    </form>
+  </main>
+
+  <script>
+    const USER = "admin";
+    const PASS = "2025";
+
+    document.getElementById("loginForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const user = document.getElementById("user").value.trim();
+      const pass = document.getElementById("pass").value.trim();
+
+      if (user === USER && pass === PASS) {
+        localStorage.setItem("auth", "ok");
+        window.location.href = "index.html";
+      } else {
+        document.getElementById("msg").textContent = "Usuario o contraseña incorrectos";
+      }
+    });
+  </script>
+</body>
+</html>
