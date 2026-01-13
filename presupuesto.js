@@ -100,7 +100,9 @@ function actualizarResumen(){
   if (entregaEl) entregaEl.textContent = formatMoney(entregaTotal, moneda);
 
   const lines = [];
-  if (entregaTotal > 0) lines.push({ label: 'Entrega', value: entregaTotal });
+  // En el resumen mostramos la entrega separada: efectivo y toma de auto
+  if (entregaEfectivo > 0) lines.push({ label: 'Entrega de efectivo', value: entregaEfectivo });
+  if (usadoToma > 0) lines.push({ label: 'Toma de auto', value: usadoToma });
   if (creditoTotal > 0) lines.push({ label: 'Financiación', value: creditoTotal });
   if (gastosAdm > 0) lines.push({ label: 'Gastos administrativos', value: gastosAdm });
   if (transferencia > 0) lines.push({ label: 'Transferencia', value: transferencia });
@@ -271,7 +273,9 @@ async function generarPresupuestoPDF(){
 
   // Resumen
   const resumen = [];
-  if (entregaTotal > 0) resumen.push(['Entrega', entregaTotal]);
+  // Mostrar la entrega separada (como en el UI)
+  if (entregaEfectivo > 0) resumen.push(['Entrega de efectivo', entregaEfectivo]);
+  if (usadoToma > 0) resumen.push(['Toma de auto', usadoToma]);
   if (creditoTotal > 0) resumen.push(['Financiación', creditoTotal]);
   if (gastosAdm > 0) resumen.push(['Gastos administrativos', gastosAdm]);
   if (transferencia > 0) resumen.push(['Transferencia', transferencia]);
