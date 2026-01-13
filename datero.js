@@ -84,6 +84,32 @@ async function generarDateroPDF() {
     y += ROW_H;
   };
 
+  // campo multilinea (caja A4 para texto libre)
+  const multilineField = (label, value = "", boxH = 24) => {
+    // etiqueta
+    newPageIfNeeded(4);
+    doc.setFont("helvetica","bold");
+    doc.text(label + ":", L, y);
+    y += 4;
+
+    // caja
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(160,160,160);
+    doc.roundedRect(L, y, W, boxH, 1.8, 1.8);
+    doc.setDrawColor(0);
+
+    // texto envuelto (si hay)
+    if (value) {
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(value, W - 6);
+      doc.text(lines.slice(0, 10), L + 3, y + 6); // límite por seguridad
+      doc.setFontSize(12);
+    }
+
+    y += boxH + 8;
+  };
+
   // === Header con logo y título
   try {
     const logo = await loadImageDataURL("logo.png");
@@ -110,6 +136,9 @@ async function generarDateroPDF() {
   field("CUIL/CUIT", get("cuil"));
   field("Condición Fiscal", get("condicion_fiscal"));
   field("Estado Civil", get("estado_civil"));
+
+  // Detalles (texto libre)
+  multilineField("Detalles", get("detalles"), 26);
 
   // === Datos del Cónyuge
   section("Datos del Cónyuge");

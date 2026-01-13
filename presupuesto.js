@@ -131,6 +131,7 @@ async function generarPresupuestoPDF(){
   const nombre = getText('nombre');
   const telefono = getText('telefono');
   const dni = getText('dni');
+  const detalles = getText('detalles');
 
   // Vehículo (venta)
   const vModelo = getText('veh_modelo');
@@ -225,6 +226,7 @@ async function generarPresupuestoPDF(){
     { label: 'Nombre', value: nombre || '—' },
     { label: 'Teléfono', value: telefono || '—' },
     { label: 'DNI', value: dni || '—' },
+    { label: 'Detalles', value: detalles || '—' },
   ]);
 
   // Vehículo
