@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🧾 Presupuesto — Operación</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root { --card-border:#e5e7eb; --muted:#6b7280; }
+    fieldset{
+      border:1px solid var(--card-border); border-radius:10px;
+      padding:14px 16px; margin-bottom:16px; background:#fff;
+      text-align:left;
+    }
+    legend{ font-weight:600; padding:0 6px; }
+    label{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+    input,select,textarea{
+      padding:9px 10px; border:1px solid #d1d5db; border-radius:8px; outline:none;
+    }
+    textarea{ min-height:72px; resize:vertical; }
+    input:focus,select:focus,textarea:focus{ border-color:#111827; }
+    .grid-2{ display:grid; grid-template-columns:1fr; gap:12px; }
+    .grid-3{ display:grid; grid-template-columns:1fr; gap:12px; }
+    @media (min-width:768px){
+      .grid-2{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .grid-3{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+    }
+    .hint{ color:var(--muted); font-size:0.9rem; margin-top:6px; }
+    .row{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 10px; border:1px solid var(--card-border); border-radius:10px;
+      background:#fff;
+    }
+    .row strong{ font-size:1.05rem; }
+    .row .muted{ color:var(--muted); font-size:0.95rem; }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; }
+    button{
+      padding:10px 14px; border-radius:10px; border:0; background:#111827; color:#fff; cursor:pointer;
+      width:auto;
+    }
+    button:hover{ opacity:0.92; }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      background:#eef2ff; color:#111827; border:1px solid #e5e7eb;
+      padding:8px 10px; border-radius:999px; font-weight:600;
+    }
+    .hidden{ display:none!important; }
+    @media print{
+      .navbar,button,.actions{ display:none!important; }
+      @page{ size:A4; margin:12mm; }
+      body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="navbar">
+    <div class="logo">🚗 Jesus Diaz Automotores</div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="index.html">Inicio</a></li>
+      <li><a href="compra_venta.html">Compra y Venta</a></li>
+      <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
+      <li><a href="datero.html">Datero</a></li>
+      <li><a href="recibo.html">Recibo</a></li>
+      <li><a href="presupuesto.html">Presupuesto</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h2>🧾 Presupuesto — Operación</h2>
+
+    <form id="presupuestoForm" onsubmit="return false;" novalidate>
+      <fieldset class="grid-2">
+        <legend>Datos generales</legend>
+        <label>Fecha:
+          <input type="date" id="fecha">
+        </label>
+        <label>Moneda:
+          <select id="moneda">
+            <option value="ARS" selected>ARS ($)</option>
+            <option value="USD">USD (US$)</option>
+          </select>
+          <div class="hint">Predeterminado ARS. Los montos se formatean como $12.990.000.</div>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cliente</legend>
+        <div class="grid-3">
+          <label>Nombre:
+            <input type="text" id="nombre" placeholder="Apellido y Nombre">
+          </label>
+          <label>Teléfono:
+            <input type="text" id="telefono" placeholder="2494...">
+          </label>
+          <label>DNI:
+            <input type="text" id="dni" placeholder="DNI">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Vehículo (venta)</legend>
+        <div class="grid-2">
+          <label>Modelo:
+            <input type="text" id="veh_modelo" placeholder="Ej: Volkswagen Vento 2.5">
+          </label>
+          <label>Año:
+            <input type="text" id="veh_anio" placeholder="Ej: 2015">
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>KM:
+            <input type="text" id="veh_km" placeholder="Ej: 120.000">
+          </label>
+          <label>Valor de venta:
+            <input type="text" id="precio_venta" inputmode="numeric" placeholder="$ 0" data-money>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Entrega (opcional) — Efectivo + Usado</legend>
+        <div class="grid-2">
+          <label>Entrega en efectivo:
+            <input type="text" id="entrega_efectivo" inputmode="numeric" placeholder="$ 0" data-money>
+          </label>
+          <label class="pill" style="justify-content:center;">Entrega total: <span id="entrega_total">$ 0</span></label>
+        </div>
+
+        <div class="grid-2">
+          <label>Usado (modelo):
+            <input type="text" id="usado_modelo" placeholder="Ej: Gol Trend">
+          </label>
+          <label>Usado (año):
+            <input type="text" id="usado_anio" placeholder="Ej: 2017">
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>Usado (KM):
+            <input type="text" id="usado_km" placeholder="Ej: 140.000">
+          </label>
+          <label>Precio de toma (usado):
+            <input type="text" id="usado_toma" inputmode="numeric" placeholder="$ 0" data-money>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Financiación</legend>
+        <div class="grid-2">
+          <label>¿Toma crédito?
+            <select id="toma_credito">
+              <option value="no" selected>No</option>
+              <option value="si">Sí</option>
+            </select>
+          </label>
+          <label class="hint">Si es Sí, completá total del crédito y cantidad de cuotas.</label>
+        </div>
+
+        <div id="bloque_credito" class="grid-2" style="display:none">
+          <label>Total del crédito:
+            <input type="text" id="credito_total" inputmode="numeric" placeholder="$ 0" data-money>
+          </label>
+          <label>Cantidad de cuotas:
+            <input type="number" id="cuotas_cant" min="1" step="1" placeholder="Ej: 24">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Gastos</legend>
+        <div class="grid-2">
+          <label>Gastos administrativos:
+            <input type="text" id="gastos_adm" inputmode="numeric" placeholder="$ 0" data-money>
+          </label>
+          <label>Transferencia:
+            <input type="text" id="transferencia" inputmode="numeric" placeholder="$ 0" data-money>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Resumen</legend>
+        <div id="resumen_lista" style="display:grid; gap:10px; margin-bottom:12px;"></div>
+<div class="row">
+          <span class="muted">TOTAL OPERACIÓN</span>
+          <strong id="resumen_total">$ 0</strong>
+        </div>
+        <div class="hint">El total se calcula como: Entrega + Financiación + Gastos administrativos + Transferencia.</div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" onclick="generarPresupuestoPDF()">📄 Generar PDF A4</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="presupuesto.js"></script>
+  <script src="utils.js"></script>
+  <script>
+    requireAuth();
+  </script>
+</body>
+</html>
