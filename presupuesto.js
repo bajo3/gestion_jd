@@ -94,7 +94,11 @@ function actualizarResumen(){
   const gastosAdm = getMoney('gastos_adm');
   const transferencia = getMoney('transferencia');
 
-  const totalOperacion = entregaTotal + creditoTotal + gastosAdm + transferencia;
+  // Si hay crédito, muchas veces la transferencia y los gastos administrativos se financian.
+  // En ese caso, se muestran en el desglose pero NO se suman al total (para evitar duplicar).
+  const creditoIncluyeExtras = tomaCredito && creditoTotal > 0 && (gastosAdm > 0 || transferencia > 0);
+
+  const totalOperacion = entregaTotal + creditoTotal + (creditoIncluyeExtras ? 0 : (gastosAdm + transferencia));
 
   const entregaEl = document.getElementById("entrega_total");
   if (entregaEl) entregaEl.textContent = formatMoney(entregaTotal, moneda);
@@ -104,8 +108,8 @@ function actualizarResumen(){
   if (entregaEfectivo > 0) lines.push({ label: 'Entrega de efectivo', value: entregaEfectivo });
   if (usadoToma > 0) lines.push({ label: 'Toma de auto', value: usadoToma });
   if (creditoTotal > 0) lines.push({ label: 'Financiación', value: creditoTotal });
-  if (gastosAdm > 0) lines.push({ label: 'Gastos administrativos', value: gastosAdm });
-  if (transferencia > 0) lines.push({ label: 'Transferencia', value: transferencia });
+  if (gastosAdm > 0) lines.push({ label: creditoIncluyeExtras ? 'Gastos administrativos (incl.)' : 'Gastos administrativos', value: gastosAdm });
+  if (transferencia > 0) lines.push({ label: creditoIncluyeExtras ? 'Transferencia (incl.)' : 'Transferencia', value: transferencia });
 
   const list = document.getElementById('resumen_lista');
   if (list) {
@@ -158,7 +162,11 @@ async function generarPresupuestoPDF(){
   const gastosAdm = getMoney('gastos_adm');
   const transferencia = getMoney('transferencia');
 
-  const totalOperacion = entregaTotal + creditoTotal + gastosAdm + transferencia;
+  // Si hay crédito, muchas veces la transferencia y los gastos administrativos se financian.
+  // En ese caso, se muestran en el desglose pero NO se suman al total (para evitar duplicar).
+  const creditoIncluyeExtras = tomaCredito && creditoTotal > 0 && (gastosAdm > 0 || transferencia > 0);
+
+  const totalOperacion = entregaTotal + creditoTotal + (creditoIncluyeExtras ? 0 : (gastosAdm + transferencia));
 
   const margin = 12;
   const pageW = doc.internal.pageSize.getWidth();
@@ -277,8 +285,8 @@ async function generarPresupuestoPDF(){
   if (entregaEfectivo > 0) resumen.push(['Entrega de efectivo', entregaEfectivo]);
   if (usadoToma > 0) resumen.push(['Toma de auto', usadoToma]);
   if (creditoTotal > 0) resumen.push(['Financiación', creditoTotal]);
-  if (gastosAdm > 0) resumen.push(['Gastos administrativos', gastosAdm]);
-  if (transferencia > 0) resumen.push(['Transferencia', transferencia]);
+  if (gastosAdm > 0) resumen.push([creditoIncluyeExtras ? 'Gastos administrativos (incl.)' : 'Gastos administrativos', gastosAdm]);
+  if (transferencia > 0) resumen.push([creditoIncluyeExtras ? 'Transferencia (incl.)' : 'Transferencia', transferencia]);
 
   y = ensureSpace(doc, y, 45, margin);
   doc.setDrawColor(17);
