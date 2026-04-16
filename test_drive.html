@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario Test Drive</title>
+    <!-- Cargamos jsPDF desde CDN para generar el documento -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Barra de navegación consistente con el resto del sitio -->
+  <nav class="navbar">
+    <div class="logo">🚗 Jesus Diaz Automotores</div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="index.html">Inicio</a></li>
+      <li><a href="compra_venta.html">Compra y Venta</a></li>
+      <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
+      <li><a href="datero.html">Datero</a></li>
+      <li><a href="recibo.html">Recibo</a></li>
+      <li><a href="presupuesto.html">Presupuesto</a></li>
+      <li><a href="test_drive.html">Test Drive</a></li>
+    </ul>
+  </nav>
+
+    <main>
+      <h2>Formulario Test Drive</h2>
+      <!-- El formulario captura todos los datos necesarios para completar el PDF -->
+      <form id="formulario_test_drive">
+        <fieldset>
+          <legend>Datos Generales</legend>
+          <label>Fecha: <input type="date" id="fecha"></label>
+          <label>Hora de salida: <input type="time" id="hora_salida"></label>
+          <label>Hora de llegada: <input type="time" id="hora_llegada"></label>
+          <label>Concesionario: <input type="text" id="concesionario" placeholder="Ej. Sucursal"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Datos del vehículo</legend>
+          <label>Marca: <input type="text" id="marca"></label>
+          <label>Modelo: <input type="text" id="modelo"></label>
+          <label>Versión: <input type="text" id="version"></label>
+          <label>Dominio / Patente: <input type="text" id="dominio"></label>
+          <label>Color: <input type="text" id="color"></label>
+          <label>Recorrido autorizado: <input type="text" id="recorrido"></label>
+          <label>Kilometraje inicial: <input type="number" id="km_inicial"></label>
+          <label>Kilometraje final: <input type="number" id="km_final"></label>
+          <label>Combustible inicial: <input type="text" id="combustible_inicial" placeholder="Ej. 3/4 tanque"></label>
+          <label>Combustible final: <input type="text" id="combustible_final" placeholder="Ej. 1/2 tanque"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Estado del vehículo</legend>
+          <label><input type="checkbox" id="sin_danos"> Sin daños visibles</label>
+          <label><input type="checkbox" id="rayones"> Rayones</label>
+          <label><input type="checkbox" id="golpes"> Golpes</label>
+          <label for="observaciones">Observaciones / detalles del estado del vehículo:</label>
+          <textarea id="observaciones" rows="4" style="width: 100%;"></textarea>
+        </fieldset>
+
+        <fieldset>
+          <legend>Documentación verificada</legend>
+          <label><input type="checkbox" id="doc_dni"> DNI</label>
+          <label><input type="checkbox" id="doc_licencia"> Licencia vigente</label>
+          <label><input type="checkbox" id="doc_cedula"> Cédula / documentación del vehículo</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Datos del conductor y asesor</legend>
+          <label>Nombre del conductor: <input type="text" id="nombre_conductor"></label>
+          <label>DNI del conductor: <input type="text" id="dni_conductor"></label>
+          <label>Lugar: <input type="text" id="lugar" placeholder="Ej. Tandil"></label>
+          <label>Aclaración del conductor: <input type="text" id="aclaracion_conductor"></label>
+          <label>Nombre del asesor: <input type="text" id="nombre_asesor"></label>
+          <label>Aclaración del asesor: <input type="text" id="aclaracion_asesor"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Documentación a anexar</legend>
+          <label><input type="checkbox" id="doc_licencia_copia"> Copia de licencia de conducir</label>
+        </fieldset>
+      </form>
+      <button onclick="generarTestDrivePDF()">Generar PDF</button>
+    </main>
+
+    <script src="utils.js"></script>
+    <script>
+      // Verificamos la autenticación igual que en el resto de páginas
+      requireAuth();
+    </script>
+    <script src="test_drive.js"></script>
+</body>
+</html>

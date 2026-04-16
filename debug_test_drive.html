@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Bypass Auth</title></head>
+<body>
+<script>
+  // Set auth in localStorage for file:// origin
+  localStorage.setItem('auth','ok');
+  // redirect to test drive
+  window.location.href = 'test_drive.html';
+</script>
+</body>
+</html>
