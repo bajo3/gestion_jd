@@ -136,9 +136,9 @@ async function generarFormularioClientePDF() {
     const availableHeight = pageHeight - y - 15;
     const cardGap = 6;
     const cardWidth = (contentWidth - cardGap) / 2;
-    const minCardHeight = 86;
-    const singlePageCardHeight = Math.max(minCardHeight, availableHeight);
-    const useSinglePageGrid = availableHeight >= minCardHeight;
+    const preferredCardHeight = getPreferredCardHeight(imageSections, cardWidth);
+    const singlePageCardHeight = Math.min(Math.max(preferredCardHeight, 72), availableHeight);
+    const useSinglePageGrid = availableHeight >= 72;
 
     if (useSinglePageGrid) {
       await drawImageGridRow(doc, imageSections, margin, y, cardWidth, singlePageCardHeight, cardGap);
@@ -331,4 +331,20 @@ function truncateText(doc, text, maxWidth) {
   }
 
   return truncated ? `${truncated}...` : "";
+}
+
+function getPreferredCardHeight(sections, cardWidth) {
+  const heights = sections.map((section) => {
+    if (!section.image || !section.image.width || !section.image.height) {
+      return 72;
+    }
+
+    const usableWidth = Math.max(cardWidth - 8, 40);
+    const imageRatio = section.image.height / section.image.width;
+    const estimatedImageHeight = usableWidth * imageRatio;
+
+    return Math.max(72, Math.min(estimatedImageHeight + 22, 118));
+  });
+
+  return Math.max(...heights, 72);
 }
