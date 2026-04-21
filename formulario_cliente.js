@@ -104,28 +104,28 @@ async function generarFormularioClientePDF() {
     ]);
 
     const generatedAt = formatDateTime(new Date());
-    let y = 18;
+    let y = 16;
 
     if (logoDataUrl) {
-      doc.addImage(logoDataUrl, "PNG", margin, y - 4, 28, 12);
+      doc.addImage(logoDataUrl, "PNG", margin, y - 3, 24, 10);
     }
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(17);
-    doc.text("FORMULARIO CLIENTE", pageWidth / 2, y + 3, { align: "center" });
+    doc.setFontSize(15);
+    doc.text("FORMULARIO CLIENTE", pageWidth / 2, y + 2, { align: "center" });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.text("Documentacion para gestion administrativa", pageWidth / 2, y + 10, { align: "center" });
-    doc.text(`Fecha de generacion: ${generatedAt}`, pageWidth / 2, y + 16, { align: "center" });
-    y += 28;
+    doc.setFontSize(9.5);
+    doc.text("Documentacion para gestion administrativa", pageWidth / 2, y + 8, { align: "center" });
+    doc.text(`Fecha de generacion: ${generatedAt}`, pageWidth / 2, y + 14, { align: "center" });
+    y += 23;
 
     y = drawSectionTitle(doc, "DATOS BASICOS", margin, contentWidth, y);
     y = drawDetailRow(doc, "DNI", dni, margin, y, contentWidth);
     y = drawDetailRow(doc, "CUIL", cuil, margin, y, contentWidth);
     y = drawDetailRow(doc, "Situacion laboral", situacionLaboral, margin, y, contentWidth);
 
-    y += 4;
+    y += 2;
     y = drawSectionTitle(doc, "DOCUMENTACION ADJUNTA", margin, contentWidth, y);
 
     const imageSections = [
@@ -133,38 +133,27 @@ async function generarFormularioClientePDF() {
       { title: "DNI dorso", image: dorsoImage }
     ];
 
-    for (const section of imageSections) {
-      const estimatedHeight = section.image ? 92 : 30;
-      if (y + estimatedHeight > pageHeight - 18) {
-        doc.addPage();
-        y = 18;
+    const availableHeight = pageHeight - y - 15;
+    const cardGap = 6;
+    const cardWidth = (contentWidth - cardGap) / 2;
+    const minCardHeight = 86;
+    const singlePageCardHeight = Math.max(minCardHeight, availableHeight);
+    const useSinglePageGrid = availableHeight >= minCardHeight;
+
+    if (useSinglePageGrid) {
+      await drawImageGridRow(doc, imageSections, margin, y, cardWidth, singlePageCardHeight, cardGap);
+      y += singlePageCardHeight + 8;
+    } else {
+      for (const section of imageSections) {
+        const estimatedHeight = section.image ? 72 : 24;
+        if (y + estimatedHeight > pageHeight - 15) {
+          doc.addPage();
+          y = 18;
+        }
+
+        await drawSingleImageCard(doc, section, margin, y, contentWidth, 66);
+        y += section.image ? 74 : 28;
       }
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(section.title, margin, y);
-      y += 4;
-
-      doc.setDrawColor(210, 210, 210);
-      doc.setFillColor(250, 250, 250);
-
-      if (!section.image) {
-        doc.roundedRect(margin, y, contentWidth, 18, 3, 3, "FD");
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.text("No adjuntado", margin + 4, y + 11);
-        y += 26;
-        continue;
-      }
-
-      const boxHeight = 82;
-      doc.roundedRect(margin, y, contentWidth, boxHeight, 3, 3, "FD");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.text(`Archivo: ${section.image.name}`, margin + 4, y + 7);
-
-      await drawImageContain(doc, section.image.dataUrl, margin + 4, y + 11, contentWidth - 8, boxHeight - 16);
-      y += boxHeight + 10;
     }
 
     const fileName = `formulario_cliente_${sanitizeDniFileName(dni)}.pdf`;
@@ -215,17 +204,17 @@ function bindImagePreview(inputId) {
 
 function drawSectionTitle(doc, title, x, width, y) {
   doc.setFillColor(240, 244, 248);
-  doc.roundedRect(x, y, width, 10, 2, 2, "F");
+  doc.roundedRect(x, y, width, 8, 2, 2, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11.5);
-  doc.text(title, x + 3, y + 6.5);
-  return y + 16;
+  doc.setFontSize(10.5);
+  doc.text(title, x + 3, y + 5.5);
+  return y + 12;
 }
 
 function drawDetailRow(doc, label, value, x, y, width) {
-  const lineY = y + 4;
+  const lineY = y + 3.5;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
+  doc.setFontSize(9.5);
   doc.text(`${label}:`, x, y);
 
   doc.setFont("helvetica", "normal");
@@ -233,7 +222,37 @@ function drawDetailRow(doc, label, value, x, y, width) {
   doc.setDrawColor(210, 210, 210);
   doc.line(x, lineY, x + width, lineY);
 
-  return y + 11;
+  return y + 8;
+}
+
+async function drawImageGridRow(doc, sections, startX, startY, cardWidth, cardHeight, gap) {
+  for (let index = 0; index < sections.length; index += 1) {
+    const x = startX + index * (cardWidth + gap);
+    await drawSingleImageCard(doc, sections[index], x, startY, cardWidth, cardHeight);
+  }
+}
+
+async function drawSingleImageCard(doc, section, x, y, width, height) {
+  doc.setDrawColor(210, 210, 210);
+  doc.setFillColor(250, 250, 250);
+  doc.roundedRect(x, y, width, height, 3, 3, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(section.title, x + 4, y + 7);
+
+  if (!section.image) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text("No adjuntado", x + 4, y + 16);
+    return;
+  }
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(truncateText(doc, section.image.name, width - 8), x + 4, y + 13);
+
+  await drawImageContain(doc, section.image.dataUrl, x + 4, y + 16, width - 8, height - 20);
 }
 
 async function loadLogoDataUrl() {
@@ -298,4 +317,18 @@ function getImageFormat(dataUrl) {
   }
 
   return "JPEG";
+}
+
+function truncateText(doc, text, maxWidth) {
+  const safeText = String(text || "");
+  if (doc.getTextWidth(safeText) <= maxWidth) {
+    return safeText;
+  }
+
+  let truncated = safeText;
+  while (truncated.length > 0 && doc.getTextWidth(`${truncated}...`) > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+
+  return truncated ? `${truncated}...` : "";
 }
