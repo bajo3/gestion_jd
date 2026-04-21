@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulario Cliente</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    .formulario-cliente-main {
+      max-width: 960px;
+    }
+
+    .formulario-cliente-form {
+      max-width: 860px;
+    }
+
+    .radio-group {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #fff;
+      font-weight: 600;
+    }
+
+    .radio-option input[type="radio"] {
+      width: auto;
+      margin: 0;
+      accent-color: #007bff;
+    }
+
+    .preview-label {
+      margin-bottom: 6px;
+    }
+
+    .preview-empty {
+      color: #6b7280;
+      font-size: 0.95rem;
+      text-align: center;
+      padding: 24px 12px;
+    }
+
+    .preview-note {
+      display: block;
+      margin-top: 8px;
+      color: #6b7280;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="logo">Jesus Diaz Automotores</div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="index.html">Inicio</a></li>
+      <li><a href="compra_venta.html">Compra y Venta</a></li>
+      <li><a href="autorizacion_conduccion.html">Autorizacion de Conduccion</a></li>
+      <li><a href="datero.html">Datero</a></li>
+      <li><a href="recibo.html">Recibo</a></li>
+      <li><a href="presupuesto.html">Presupuesto</a></li>
+      <li><a href="test_drive.html">Test Drive</a></li>
+      <li><a href="formulario_cliente.html">Formulario Cliente</a></li>
+    </ul>
+  </nav>
+
+  <main class="formulario-cliente-main">
+    <h2>Formulario Cliente</h2>
+
+    <form id="formulario_cliente" class="formulario-cliente-form" onsubmit="return false;" novalidate>
+      <fieldset>
+        <legend>Datos del cliente</legend>
+        <div class="form-grid-2">
+          <label>DNI
+            <input type="text" id="dni" inputmode="numeric" placeholder="Ej. 30111222">
+          </label>
+          <label>CUIL
+            <input type="text" id="cuil" placeholder="Ej. 20-30111222-3">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Situacion laboral</legend>
+        <div class="radio-group">
+          <label class="radio-option">
+            <input type="radio" name="situacion_laboral" value="Relacion de dependencia">
+            Relacion de dependencia
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="situacion_laboral" value="Autonomo">
+            Autonomo
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Documentacion adjunta</legend>
+        <div class="form-grid-2">
+          <label>Foto DNI frente
+            <input type="file" id="dni_frente" accept="image/*">
+          </label>
+          <label>Foto DNI dorso
+            <input type="file" id="dni_dorso" accept="image/*">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Vista previa de imagenes</legend>
+        <div class="preview-grid">
+          <article class="preview-card">
+            <h3 class="preview-title">DNI frente</h3>
+            <p class="preview-file" id="dni_frente_file">Sin archivo seleccionado</p>
+            <div class="preview-image-wrap">
+              <img id="dni_frente_preview" class="preview-image" alt="Vista previa DNI frente">
+              <div id="dni_frente_empty" class="preview-empty">Todavia no se cargo una imagen.</div>
+            </div>
+          </article>
+
+          <article class="preview-card">
+            <h3 class="preview-title">DNI dorso</h3>
+            <p class="preview-file" id="dni_dorso_file">Sin archivo seleccionado</p>
+            <div class="preview-image-wrap">
+              <img id="dni_dorso_preview" class="preview-image" alt="Vista previa DNI dorso">
+              <div id="dni_dorso_empty" class="preview-empty">Todavia no se cargo una imagen.</div>
+            </div>
+          </article>
+        </div>
+        <span class="preview-note">Las imagenes se incluyen en el PDF manteniendo la proporcion original.</span>
+      </fieldset>
+
+      <button type="button" onclick="generarFormularioClientePDF()">Generar PDF</button>
+    </form>
+  </main>
+
+  <script src="utils.js"></script>
+  <script>requireAuth();</script>
+  <script src="formulario_cliente.js"></script>
+</body>
+</html>
