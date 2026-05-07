@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #f1f5f9;
+  --color-foreground: #0f172a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-primary: #0f172a;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #e2e8f0;
+  --color-secondary-foreground: #0f172a;
+  --color-muted: #e2e8f0;
+  --color-muted-foreground: #475569;
+  --color-border: #cbd5e1;
+  --color-ring: #94a3b8;
+  --radius: 0.875rem;
+}
+
+html {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #0f172a;
+  font-family:
+    "Segoe UI",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 10, 138, 0.18), transparent 30%),
+    linear-gradient(135deg, #050507 0%, #111827 48%, #050507 100%);
+  color: white;
+  animation: app-intro-exit 2s ease forwards;
+  pointer-events: none;
+}
+
+.app-intro__panel {
+  width: min(100%, 28rem);
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  text-align: center;
+  animation: app-intro-panel 0.72s ease-out both;
+}
+
+.app-intro__mark {
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)),
+    #0f172a;
+  box-shadow: 0 0 42px rgba(255, 10, 138, 0.26);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.app-intro__copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.app-intro__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.app-intro h1 {
+  margin: 0;
+  font-size: clamp(2.1rem, 7vw, 3.25rem);
+  line-height: 1;
+  font-weight: 900;
+}
+
+.app-intro__copy p:last-child {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.95rem;
+}
+
+.app-intro__bar {
+  width: min(14rem, 70vw);
+  height: 0.22rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.app-intro__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff0a8a, #ffffff, #ff0a8a);
+  animation: app-intro-progress 1.72s ease-out forwards;
+}
+
+@keyframes app-intro-panel {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes app-intro-progress {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes app-intro-exit {
+  0%,
+  72% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-intro,
+  .app-intro__panel,
+  .app-intro__bar span {
+    animation: none;
+  }
+}

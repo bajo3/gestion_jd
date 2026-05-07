@@ -419,4 +419,238 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  
+
+  .calc0km-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+    gap: 24px;
+    text-align: left;
+  }
+
+  .calc0km-panel {
+    background: #fff;
+    border: 1px solid #dbe4ee;
+    border-radius: 18px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    padding: 28px;
+  }
+
+  .calc0km-panel-primary {
+    background:
+      linear-gradient(180deg, rgba(0, 123, 255, 0.05), rgba(0, 123, 255, 0)),
+      #fff;
+  }
+
+  .calc0km-kicker {
+    display: inline-block;
+    margin-bottom: 10px;
+    color: #007bff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .calc0km-title {
+    margin: 0;
+    color: #1f2937;
+    font-size: clamp(28px, 4vw, 38px);
+    line-height: 1.08;
+  }
+
+  .calc0km-copy {
+    margin: 12px 0 0;
+    color: #4b5563;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .calc0km-form {
+    display: grid;
+    gap: 18px;
+    margin-top: 28px;
+  }
+
+  .calc0km-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .calc0km-field {
+    display: grid;
+    gap: 8px;
+  }
+
+  .calc0km-field label,
+  .calc0km-toggle label {
+    margin-top: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #374151;
+  }
+
+  .calc0km-field input,
+  .calc0km-field textarea {
+    margin-top: 0;
+    border: 1px solid #cfd8e3;
+    border-radius: 12px;
+    background: #fbfdff;
+    padding: 13px 14px;
+  }
+
+  .calc0km-field textarea {
+    min-height: 108px;
+    resize: vertical;
+  }
+
+  .calc0km-toggle {
+    display: grid;
+    gap: 8px;
+    align-content: end;
+  }
+
+  .calc0km-toggle-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 50px;
+    padding: 0 14px;
+    border: 1px solid #cfd8e3;
+    border-radius: 12px;
+    background: #fbfdff;
+    color: #4b5563;
+    font-weight: 600;
+  }
+
+  .calc0km-toggle-card input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .calc0km-error {
+    min-height: 20px;
+    margin: -2px 0 0;
+    color: #c62828;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .calc0km-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .calc0km-btn {
+    width: auto;
+    min-width: 180px;
+    margin-top: 0;
+    border-radius: 999px;
+    padding: 14px 22px;
+    font-weight: 700;
+  }
+
+  .calc0km-btn-secondary {
+    background: #e8f1fb;
+    color: #0056b3;
+  }
+
+  .calc0km-btn-secondary:hover {
+    background: #d7e9fb;
+  }
+
+  .calc0km-summary-header {
+    margin-bottom: 18px;
+  }
+
+  .calc0km-total {
+    margin-bottom: 18px;
+    padding: 22px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: #fff;
+  }
+
+  .calc0km-total span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    opacity: 0.86;
+  }
+
+  .calc0km-total strong {
+    font-size: clamp(32px, 4vw, 42px);
+    line-height: 1;
+  }
+
+  .calc0km-summary-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .calc0km-summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #f8fbff;
+    border: 1px solid #dbe8f6;
+  }
+
+  .calc0km-summary-item span {
+    color: #5b6470;
+    font-size: 14px;
+  }
+
+  .calc0km-summary-item strong {
+    color: #111827;
+    text-align: right;
+  }
+
+  .calc0km-summary-item-emphasis {
+    background: #edf5ff;
+    border-color: #bfd9fb;
+  }
+
+  .calc0km-meta,
+  .calc0km-copy-box {
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: 14px;
+    border: 1px solid #dbe4ee;
+    background: #fff;
+  }
+
+  .calc0km-meta p {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 0;
+    padding: 7px 0;
+    color: #4b5563;
+  }
+
+  .calc0km-copy-box h3 {
+    margin: 0 0 10px;
+    color: #007bff;
+    font-size: 16px;
+  }
+
+  .calc0km-copy-box pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  @media (max-width: 900px) {
+    .calc0km-shell {
+      grid-template-columns: 1fr;
+    }
+  }

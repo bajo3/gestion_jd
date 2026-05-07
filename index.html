@@ -1,83 +1,19 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Generador de Documentos</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-
-     <nav class="navbar">
-    <div class="logo">🚗 Jesus Diaz Automotores</div>
-    <ul class="nav-links" id="navLinks">
-      <li><a href="index.html">Inicio</a></li>
-      <li><a href="compra_venta.html">Compra y Venta</a></li>
-      <li><a href="autorizacion_conduccion.html">Autorización de Conducción</a></li>
-      <li><a href="datero.html">Datero</a></li>
-      <li><a href="recibo.html">Recibo</a></li>
-      <li><a href="presupuesto.html">Presupuesto</a></li>
-      <li><a href="test_drive.html">Test Drive</a></li>
-      <li><a href="formulario_cliente.html">Formulario Cliente</a></li>
-    </ul>
-  </nav>
-
-      <main>
-        <section class="hero">
-          <h1>🚗 Bienvenido a Jesús Díaz Automotores</h1>
-          <p>Generá documentos esenciales para la compra, venta y conducción de vehículos de forma rápida y segura.</p>
-          <div class="hero-buttons">
-            <a href="compra_venta.html" class="btn">📄 Compra y Venta</a>
-            <a href="autorizacion_conduccion.html" class="btn">📝 Autorización de Conducción</a>
-            <a href="datero.html" class="btn">📋 Datero Vehicular</a>
-            <a  href="recibo.html" class="btn">💲 Recibo</a>
-            <a href="presupuesto.html" class="btn">🧾 Presupuesto</a>
-            <a href="test_drive.html" class="btn">🚘 Test Drive</a>
-            <a href="formulario_cliente.html" class="btn">🪪 Formulario Cliente</a>
-          </div>
-        </section>
-
-        <section class="external-links">
-  <a href="https://www.dnrpa.gov.ar/portal_dnrpa/" target="_blank" class="external-link">
-    <i class="fas fa-car"></i>
-    <span>DNRPA</span>
-  </a>
-  <a href="https://app.arba.gov.ar/AvisoDeudas/?imp=1" target="_blank" class="external-link">
-    <i class="fas fa-file-invoice-dollar"></i>
-    <span>Deudas ARBA</span>
-  </a>
-  <a href="https://infraccionesba.gba.gob.ar/consulta-infraccion" target="_blank" class="external-link">
-    <i class="fas fa-gavel"></i>
-    <span>Infracciones BA</span>
-  </a>
-  <a href="https://docs.google.com/spreadsheets/d/1_EL8FCS9UuqxeXuB6dXFxK7EQN7SJla6dHG3SeL7_ps/edit?usp=sharing" target="_blank" class="external-link">
-    <i class="fa-solid fa-hand-holding-dollar"></i>
-    <span>Lista de precios</span>
-  </a>
-   <a href="https://docs.google.com/spreadsheets/d/1tpn1gbeubEnARkF2iwJIiWsK8AA3kV9QNWeEzEpzthM/edit?gid=1895596246#gid=1895596246" target="_blank" class="external-link">
-    <i class="fa-solid fa-book-open"></i>
-    <span>Lista de transferencias</span>
-  </a>
-</section>
-
-      
-       
-      </main>
-
-  <script src="utils.js"></script>
-<script>
-  function toggleMenu() {
-    const nav = document.getElementById('navLinks');
-    nav.classList.toggle('active');
-  }
-</script>
-<script>
-  requireAuth();
-</script>
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-
-
-</body>
-</html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <meta
+      name="description"
+      content="Sistema interno de Jesus Diaz Automotores"
+    />
+    <title>Gestion JD</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+  </html>

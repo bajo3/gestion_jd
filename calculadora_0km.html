@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Calculadora 0 km</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="logo">Jesus Diaz Automotores</div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="index.html">Inicio</a></li>
+      <li><a href="compra_venta.html">Compra y Venta</a></li>
+      <li><a href="autorizacion_conduccion.html">Autorizacion de Conduccion</a></li>
+      <li><a href="datero.html">Datero</a></li>
+      <li><a href="recibo.html">Recibo</a></li>
+      <li><a href="presupuesto.html">Presupuesto</a></li>
+      <li><a href="test_drive.html">Test Drive</a></li>
+      <li><a href="calculadora_0km.html">Calculadora 0 km</a></li>
+      <li><a href="formulario_cliente.html">Formulario Cliente</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <section class="calc0km-shell">
+      <section class="calc0km-panel calc0km-panel-primary">
+        <span class="calc0km-kicker">Credito 0 km</span>
+        <h1 class="calc0km-title">Calculadora de quebranto</h1>
+        <p class="calc0km-copy">
+          Carga la operacion y obtene al instante el resumen interno con el mismo
+          criterio de calculo del proyecto original, ahora integrado a Gestion JD.
+        </p>
+
+        <form id="calculator-form" class="calc0km-form" novalidate>
+          <div class="calc0km-field">
+            <label for="unidad">Unidad / modelo</label>
+            <input id="unidad" name="unidad" type="text" placeholder="Ej: Tera 0 km" />
+          </div>
+
+          <div class="calc0km-grid">
+            <div class="calc0km-field">
+              <label for="valorAuto">Valor del auto</label>
+              <input
+                id="valorAuto"
+                name="valorAuto"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="1"
+                placeholder="0"
+              />
+            </div>
+
+            <div class="calc0km-field">
+              <label for="montoFinanciado">Monto a financiar</label>
+              <input
+                id="montoFinanciado"
+                name="montoFinanciado"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="1"
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <div class="calc0km-grid">
+            <div class="calc0km-field">
+              <label for="porcentajeQuebranto">% de quebranto</label>
+              <input
+                id="porcentajeQuebranto"
+                name="porcentajeQuebranto"
+                type="text"
+                inputmode="decimal"
+                placeholder="0"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="calc0km-toggle">
+              <label for="aplicaIva">Aplicar IVA al quebranto</label>
+              <div class="calc0km-toggle-card">
+                <input id="aplicaIva" name="aplicaIva" type="checkbox" />
+                <span>IVA 21%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="calc0km-grid">
+            <div class="calc0km-field">
+              <label for="plazo">Plazo</label>
+              <input id="plazo" name="plazo" type="text" placeholder="Ej: 18 meses" />
+            </div>
+
+            <div class="calc0km-field">
+              <label for="tna">TNA</label>
+              <input id="tna" name="tna" type="text" placeholder="Ej: 0%" />
+            </div>
+          </div>
+
+          <div class="calc0km-field">
+            <label for="campana">Campana</label>
+            <input id="campana" name="campana" type="text" placeholder="Ej: Especial Autos" />
+          </div>
+
+          <div class="calc0km-field">
+            <label for="observaciones">Observaciones internas</label>
+            <textarea
+              id="observaciones"
+              name="observaciones"
+              rows="4"
+              placeholder="Notas internas para la operacion"
+            ></textarea>
+          </div>
+
+          <p id="errorMessage" class="calc0km-error" role="alert" aria-live="polite"></p>
+
+          <div class="calc0km-actions">
+            <button type="button" id="clearButton" class="calc0km-btn calc0km-btn-secondary">
+              Limpiar
+            </button>
+            <button type="button" id="copyButton" class="calc0km-btn">
+              Copiar resumen
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="calc0km-panel">
+        <div class="calc0km-summary-header">
+          <span class="calc0km-kicker">Resumen de operacion</span>
+          <h2>Vista rapida</h2>
+          <p class="calc0km-copy">
+            El total inicial queda destacado y el texto final se prepara listo para copiar.
+          </p>
+        </div>
+
+        <div class="calc0km-total">
+          <span>Total inicial estimado</span>
+          <strong id="totalInicial">$0</strong>
+        </div>
+
+        <div class="calc0km-summary-list">
+          <article class="calc0km-summary-item calc0km-summary-item-emphasis">
+            <span>Cuota estimada</span>
+            <strong id="resumenCuotaEstimada">-</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Unidad</span>
+            <strong id="resumenUnidad">-</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Valor unidad</span>
+            <strong id="resumenValorAuto">$0</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Monto financiado</span>
+            <strong id="resumenMontoFinanciado">$0</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Entrega</span>
+            <strong id="resumenEntrega">$0</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Quebranto %</span>
+            <strong id="resumenPorcentaje">0%</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Quebranto neto</span>
+            <strong id="resumenQuebrantoNeto">$0</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>IVA quebranto</span>
+            <strong id="resumenIvaQuebranto">$0</strong>
+          </article>
+          <article class="calc0km-summary-item">
+            <span>Quebranto final</span>
+            <strong id="resumenQuebrantoFinal">$0</strong>
+          </article>
+        </div>
+
+        <div class="calc0km-meta">
+          <p><span>Plazo:</span> <strong id="resumenPlazo">-</strong></p>
+          <p><span>TNA:</span> <strong id="resumenTna">-</strong></p>
+          <p><span>Campana:</span> <strong id="resumenCampana">-</strong></p>
+          <p><span>Observaciones:</span> <strong id="resumenObservaciones">-</strong></p>
+        </div>
+
+        <div class="calc0km-copy-box">
+          <h3>Texto que se copiara</h3>
+          <pre id="copyPreview"></pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="calculadora_0km.js"></script>
+  <script src="utils.js"></script>
+  <script>
+    requireAuth();
+  </script>
+</body>
+</html>
