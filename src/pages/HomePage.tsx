@@ -20,6 +20,7 @@ const externalLinks = [
   { href: "https://infraccionesba.gba.gob.ar/consulta-infraccion", label: "Infracciones BA" },
   { href: "https://docs.google.com/spreadsheets/d/1_EL8FCS9UuqxeXuB6dXFxK7EQN7SJla6dHG3SeL7_ps/edit?usp=sharing", label: "Lista de precios" },
   { href: "https://docs.google.com/spreadsheets/d/1tpn1gbeubEnARkF2iwJIiWsK8AA3kV9QNWeEzEpzthM/edit?gid=1895596246#gid=1895596246", label: "Lista de transferencias" },
+  { href: "/cotizador-032026.xlsx", label: "Cotizador" },
 ];
 
 export function HomePage() {
@@ -52,7 +53,7 @@ export function HomePage() {
       </div>
 
       <Card>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           {externalLinks.map((link) => (
             <a
               key={link.href}
