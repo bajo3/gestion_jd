@@ -10,6 +10,7 @@ import {
   Home,
   LogOut,
   Menu,
+  ShieldAlert,
   X,
 } from "lucide-react";
 import { logout } from "@/lib/auth";
@@ -24,6 +25,7 @@ const navigation = [
   { to: "/ventas", label: "Ventas", icon: FileSpreadsheet },
   { to: "/ventas/seguimientos", label: "Seguimientos", icon: ClipboardList },
   { to: "/ventas/documentos", label: "Documentos", icon: FileText },
+  { to: "/infracciones", label: "Infracciones", icon: ShieldAlert },
 ];
 
 function isPathInSection(pathname: string, paths: string[]) {

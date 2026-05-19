@@ -19,6 +19,7 @@ import { VehicleNewPage } from "@/pages/autos/VehicleNewPage";
 import { VentasDashboardPage } from "@/pages/ventas/VentasDashboardPage";
 import { VentasDocumentosPage } from "@/pages/ventas/VentasDocumentosPage";
 import { VentasSeguimientosPage } from "@/pages/ventas/VentasSeguimientosPage";
+import { InfraccionesPage } from "@/pages/InfraccionesPage";
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -45,6 +46,7 @@ export function Router() {
         <Route path="/ventas" element={<VentasDashboardPage />} />
         <Route path="/ventas/seguimientos" element={<VentasSeguimientosPage />} />
         <Route path="/ventas/documentos" element={<VentasDocumentosPage />} />
+        <Route path="/infracciones" element={<InfraccionesPage />} />
         <Route path="/compra-venta" element={<CompraVentaPage />} />
         <Route path="/autorizacion-conduccion" element={<AutorizacionPage />} />
         <Route path="/datero" element={<DateroPage />} />
