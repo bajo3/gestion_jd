@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   FileText,
   Home,
+  Inbox,
   LogOut,
   Menu,
   ShieldAlert,
@@ -25,6 +26,7 @@ const navigation = [
   { to: "/ventas", label: "Ventas", icon: FileSpreadsheet },
   { to: "/ventas/seguimientos", label: "Seguimientos", icon: ClipboardList },
   { to: "/ventas/documentos", label: "Documentos", icon: FileText },
+  { to: "/leads", label: "Leads", icon: Inbox },
   { to: "/infracciones", label: "Infracciones", icon: ShieldAlert },
 ];
 

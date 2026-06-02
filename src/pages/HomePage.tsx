@@ -1,9 +1,10 @@
-import { CarFront, ExternalLink, FileStack, ShieldCheck, WalletCards } from "lucide-react";
+import { CarFront, ExternalLink, FileStack, Inbox, ShieldCheck, WalletCards } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 
 const documents = [
+  { to: "/leads", title: "Leads MeLi", description: "Seguimiento de consultas y prioridades.", icon: Inbox },
   { to: "/compra-venta", title: "Compra y Venta", description: "Boleto de compra venta.", icon: FileStack },
   { to: "/autorizacion-conduccion", title: "Autorizacion", description: "Permiso para circular.", icon: ShieldCheck },
   { to: "/datero", title: "Datero", description: "Formulario de transferencia.", icon: CarFront },
