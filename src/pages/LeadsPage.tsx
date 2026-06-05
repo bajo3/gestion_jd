@@ -20,15 +20,19 @@ import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import { cn } from "@/lib/utils";
 
 const ARCHIVED = ["🤝 Cerrado", "🚫 No interesado"];
+const CONTACTED_STATUS = "💬 Contactado";
+const RECONTACT_STATUS = "📞 Recontactar";
+const NO_ANSWER_STATUS = "❌ No contesta";
+
 const STATUS_OPTIONS = [
   "⏳ Sin contactar",
   "✅ Interesado",
-  "📞 Recontactar",
-  "❌ No contesta",
+  CONTACTED_STATUS,
+  RECONTACT_STATUS,
+  NO_ANSWER_STATUS,
   "🚫 No interesado",
   "🤝 Cerrado",
 ];
-const PRIORITY_OPTIONS = ["🔴 Alta", "🟡 Media", "🟢 Baja"];
 
 type LeadRow = {
   lead_key: string;
@@ -48,7 +52,6 @@ type Lead = {
   auto: string;
   telefono: string;
   estado: string;
-  prioridad: string;
   notas: string;
   fechaLead: string;
   fechaContacto: string;
@@ -59,18 +62,21 @@ type LeadForm = {
   auto: string;
   telefono: string;
   estado: string;
-  prioridad: string;
   notas: string;
   fechaLead: string;
   fechaContacto: string;
 };
+
+function normalizeStatus(status: string) {
+  if (status.includes("Contactado")) return CONTACTED_STATUS;
+  return status;
+}
 
 const emptyForm = (): LeadForm => ({
   nombre: "",
   auto: "",
   telefono: "",
   estado: "⏳ Sin contactar",
-  prioridad: "🟡 Media",
   notas: "",
   fechaLead: new Date().toISOString().slice(0, 10),
   fechaContacto: "",
@@ -85,8 +91,7 @@ function normalizeLead(row: LeadRow): Lead {
     nombre: row.buyer_name || "",
     auto: row.item_title || "",
     telefono: row.phone || "",
-    estado: row.status || "⏳ Sin contactar",
-    prioridad: String(raw.prioridad || "🟡 Media"),
+    estado: normalizeStatus(row.status || "⏳ Sin contactar"),
     notas: String(raw.notas || ""),
     fechaLead: row.date_created || "",
     fechaContacto: String(raw.fecha_contacto || ""),
@@ -116,6 +121,20 @@ function daysSince(value: string) {
   return Math.floor((Date.now() - date.getTime()) / 86400000);
 }
 
+function noAnswerDays(lead: Lead) {
+  if (!lead.estado.includes("No contesta")) return null;
+  return daysSince(lead.fechaContacto || lead.fechaLead);
+}
+
+function shouldRecontactNoAnswer(lead: Lead) {
+  const days = noAnswerDays(lead);
+  return days !== null && days >= 3;
+}
+
+function visibleStatus(lead: Lead) {
+  return shouldRecontactNoAnswer(lead) ? RECONTACT_STATUS : normalizeStatus(lead.estado);
+}
+
 function whatsappLink(phone: string) {
   const number = phone.replace(/\D/g, "");
   return number ? `https://wa.me/${number}` : "";
@@ -127,7 +146,6 @@ function leadToForm(lead: Lead): LeadForm {
     auto: lead.auto,
     telefono: lead.telefono,
     estado: lead.estado,
-    prioridad: lead.prioridad,
     notas: lead.notas,
     fechaLead: toInputDate(lead.fechaLead),
     fechaContacto: toInputDate(lead.fechaContacto),
@@ -136,6 +154,7 @@ function leadToForm(lead: Lead): LeadForm {
 
 function statusClasses(status: string) {
   if (status.includes("Interesado")) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status.includes("Contactado")) return "border-sky-200 bg-sky-50 text-sky-700";
   if (status.includes("Recontactar")) return "border-amber-200 bg-amber-50 text-amber-700";
   if (status.includes("No contesta")) return "border-red-200 bg-red-50 text-red-700";
   if (status.includes("No interesado")) return "border-slate-200 bg-slate-100 text-slate-500";
@@ -143,10 +162,9 @@ function statusClasses(status: string) {
   return "border-slate-200 bg-white text-slate-700";
 }
 
-function priorityClasses(priority: string) {
-  if (priority.includes("Alta")) return "border-red-200 bg-red-50 text-red-700";
-  if (priority.includes("Baja")) return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  return "border-amber-200 bg-amber-50 text-amber-700";
+function visibleStatusClasses(lead: Lead) {
+  if (shouldRecontactNoAnswer(lead)) return "border-red-300 bg-red-50 text-red-700 ring-2 ring-red-100";
+  return statusClasses(visibleStatus(lead));
 }
 
 export function LeadsPage() {
@@ -158,7 +176,6 @@ export function LeadsPage() {
   const [tab, setTab] = useState<"activos" | "archivados">("activos");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("");
   const [contactFilter, setContactFilter] = useState<"todos" | "sin-contacto" | "contactados" | "vencidos">("todos");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -202,13 +219,14 @@ export function LeadsPage() {
 
   const stats = useMemo(() => {
     const activos = leads.filter((lead) => !ARCHIVED.includes(lead.estado));
-    const count = (status: string) => activos.filter((lead) => lead.estado === status).length;
+    const count = (status: string) => activos.filter((lead) => visibleStatus(lead) === status).length;
 
     return {
       activos: activos.length,
       sin: count("⏳ Sin contactar"),
       interesados: count("✅ Interesado"),
-      recontactar: count("📞 Recontactar"),
+      contactados: count(CONTACTED_STATUS),
+      recontactar: count(RECONTACT_STATUS),
       cerrados: leads.filter((lead) => lead.estado === "🤝 Cerrado").length,
       archivados: leads.filter((lead) => ARCHIVED.includes(lead.estado)).length,
     };
@@ -241,14 +259,17 @@ export function LeadsPage() {
 
         return (
           matchesQuery &&
-          (!statusFilter || lead.estado === statusFilter) &&
-          (!priorityFilter || lead.prioridad === priorityFilter) &&
+          (!statusFilter || visibleStatus(lead) === statusFilter) &&
           matchesContact &&
           matchesDateFrom &&
           matchesDateTo
         );
       })
       .sort((a, b) => {
+        const aUrgent = shouldRecontactNoAnswer(a);
+        const bUrgent = shouldRecontactNoAnswer(b);
+        if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
+
         const da = a.fechaLead ? new Date(a.fechaLead).getTime() : Number.NaN;
         const db = b.fechaLead ? new Date(b.fechaLead).getTime() : Number.NaN;
         const aValid = !Number.isNaN(da);
@@ -258,12 +279,11 @@ export function LeadsPage() {
         if (aValid) return dateOrder === "asc" ? 1 : -1;
         return 0;
       });
-  }, [contactFilter, dateFrom, dateOrder, dateTo, leads, priorityFilter, query, statusFilter, tab]);
+  }, [contactFilter, dateFrom, dateOrder, dateTo, leads, query, statusFilter, tab]);
 
   const clearFilters = () => {
     setQuery("");
     setStatusFilter("");
-    setPriorityFilter("");
     setContactFilter("todos");
     setDateFrom("");
     setDateTo("");
@@ -273,7 +293,6 @@ export function LeadsPage() {
   const activeFilterCount = [
     query.trim(),
     statusFilter,
-    priorityFilter,
     contactFilter !== "todos" ? contactFilter : "",
     dateFrom,
     dateTo,
@@ -288,7 +307,6 @@ export function LeadsPage() {
     }
     const raw = {
       ...lead.raw,
-      prioridad: next.prioridad,
       notas: next.notas,
       fecha_contacto: next.fechaContacto,
     };
@@ -336,7 +354,6 @@ export function LeadsPage() {
     setSaving(true);
     const raw = {
       ...(editing?.raw || {}),
-      prioridad: form.prioridad,
       notas: form.notas.trim(),
       fecha_contacto: form.fechaContacto || "",
     };
@@ -404,7 +421,7 @@ export function LeadsPage() {
       <PageHeader
         eyebrow="Mercado Libre"
         title="Leads"
-        description="Seguimiento comercial de consultas, estados, prioridades y contacto por WhatsApp."
+        description="Seguimiento comercial de consultas, estados y contacto por WhatsApp."
         actions={
           <>
             <a
@@ -426,10 +443,11 @@ export function LeadsPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Metric label="Activos" value={stats.activos} />
         <Metric label="Sin contactar" value={stats.sin} tone="slate" />
         <Metric label="Interesados" value={stats.interesados} tone="green" />
+        <Metric label="Contactados" value={stats.contactados} tone="sky" />
         <Metric label="Recontactar" value={stats.recontactar} tone="amber" />
         <Metric label="Cerrados" value={stats.cerrados} tone="blue" />
       </div>
@@ -485,11 +503,11 @@ export function LeadsPage() {
             <FilterChip active={contactFilter === "sin-contacto"} onClick={() => setContactFilter("sin-contacto")}>
               Sin contacto
             </FilterChip>
-            <FilterChip active={statusFilter === "📞 Recontactar"} onClick={() => setStatusFilter(statusFilter === "📞 Recontactar" ? "" : "📞 Recontactar")}>
-              Recontactar
+            <FilterChip active={statusFilter === CONTACTED_STATUS} onClick={() => setStatusFilter(statusFilter === CONTACTED_STATUS ? "" : CONTACTED_STATUS)}>
+              Contactado
             </FilterChip>
-            <FilterChip active={priorityFilter === "🔴 Alta"} onClick={() => setPriorityFilter(priorityFilter === "🔴 Alta" ? "" : "🔴 Alta")}>
-              Alta prioridad
+            <FilterChip active={statusFilter === RECONTACT_STATUS} onClick={() => setStatusFilter(statusFilter === RECONTACT_STATUS ? "" : RECONTACT_STATUS)}>
+              Recontactar
             </FilterChip>
             {activeFilterCount ? (
               <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100" onClick={clearFilters}>
@@ -499,20 +517,12 @@ export function LeadsPage() {
           </div>
 
           {showFilters ? (
-            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-6">
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-5">
               <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 <option value="">Todos los estados</option>
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status} value={status}>
                     {status}
-                  </option>
-                ))}
-              </Select>
-              <Select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
-                <option value="">Todas las prioridades</option>
-                {PRIORITY_OPTIONS.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
                   </option>
                 ))}
               </Select>
@@ -572,13 +582,12 @@ export function LeadsPage() {
               <colgroup>
                 <col className="w-[3%]" />
                 <col className="w-[9%]" />
-                <col className="w-[16%]" />
-                <col className="w-[10%]" />
-                <col className="w-[14%]" />
-                <col className="w-[7%]" />
+                <col className="w-[17%]" />
                 <col className="w-[11%]" />
-                <col className="w-[18%]" />
+                <col className="w-[15%]" />
                 <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[21%]" />
                 <col className="w-[4%]" />
               </colgroup>
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -591,14 +600,13 @@ export function LeadsPage() {
                   <th className="px-2 py-3">Lead</th>
                   <th className="px-2 py-3">Contacto</th>
                   <th className="px-2 py-3">Notas</th>
-                  <th className="px-2 py-3">Prio.</th>
                   <th className="px-2 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-slate-500">
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                       Cargando leads...
                     </td>
                   </tr>
@@ -614,7 +622,7 @@ export function LeadsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-slate-500">
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                       Sin resultados
                     </td>
                   </tr>
@@ -652,29 +660,15 @@ export function LeadsPage() {
               <Field label="Auto / publicacion">
                 <Input value={form.auto} onChange={(event) => setForm({ ...form, auto: event.target.value })} />
               </Field>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Estado">
-                  <Select value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value })}>
-                    {STATUS_OPTIONS.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Prioridad">
-                  <Select
-                    value={form.prioridad}
-                    onChange={(event) => setForm({ ...form, prioridad: event.target.value })}
-                  >
-                    {PRIORITY_OPTIONS.map((priority) => (
-                      <option key={priority} value={priority}>
-                        {priority}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
+              <Field label="Estado">
+                <Select value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value })}>
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Fecha contacto">
                   <Input
@@ -724,12 +718,13 @@ function Metric({
 }: {
   label: string;
   value: number;
-  tone?: "pink" | "slate" | "green" | "amber" | "blue";
+  tone?: "pink" | "slate" | "green" | "sky" | "amber" | "blue";
 }) {
   const tones = {
     pink: "text-[#ff0a8a]",
     slate: "text-slate-900",
     green: "text-emerald-600",
+    sky: "text-sky-600",
     amber: "text-amber-600",
     blue: "text-blue-600",
   };
@@ -780,6 +775,8 @@ function LeadTableRow({
   onUpdate: (patch: Partial<LeadForm>) => void;
 }) {
   const days = daysSince(lead.fechaLead);
+  const urgentRecontact = shouldRecontactNoAnswer(lead);
+  const currentStatus = visibleStatus(lead);
   const wa = whatsappLink(lead.telefono);
   const [notesDraft, setNotesDraft] = useState(lead.notas);
 
@@ -788,7 +785,7 @@ function LeadTableRow({
   }, [lead.notas]);
 
   return (
-    <tr className="align-top transition hover:bg-slate-50">
+    <tr className={cn("align-top transition", urgentRecontact ? "bg-red-50/40 hover:bg-red-50" : "hover:bg-slate-50")}>
       <td className="px-2 py-3 font-mono text-xs text-slate-400">{index}</td>
       <td className="px-2 py-3">
         <div className="break-words font-semibold leading-tight text-slate-950">{lead.nombre || "-"}</div>
@@ -818,8 +815,8 @@ function LeadTableRow({
       </td>
       <td className="px-2 py-3">
         <Select
-          className={cn("h-10 w-full border px-2 text-xs font-semibold", statusClasses(lead.estado))}
-          value={lead.estado}
+          className={cn("h-10 w-full border px-2 text-xs font-semibold", visibleStatusClasses(lead))}
+          value={currentStatus}
           onChange={(event) => onUpdate({ estado: event.target.value })}
         >
           {STATUS_OPTIONS.map((status) => (
@@ -872,19 +869,6 @@ function LeadTableRow({
         />
       </td>
       <td className="px-2 py-3">
-        <Select
-          className={cn("h-10 w-full border px-2 text-xs font-semibold", priorityClasses(lead.prioridad))}
-          value={lead.prioridad}
-          onChange={(event) => onUpdate({ prioridad: event.target.value })}
-        >
-          {PRIORITY_OPTIONS.map((priority) => (
-            <option key={priority} value={priority}>
-              {priority}
-            </option>
-          ))}
-        </Select>
-      </td>
-      <td className="px-2 py-3">
         <Button variant="outline" className="h-10 w-10 px-0" onClick={onEdit} title="Editar">
           <Edit3 className="h-4 w-4" />
         </Button>
@@ -903,6 +887,8 @@ function LeadCompactCard({
   onUpdate: (patch: Partial<LeadForm>) => void;
 }) {
   const days = daysSince(lead.fechaLead);
+  const urgentRecontact = shouldRecontactNoAnswer(lead);
+  const currentStatus = visibleStatus(lead);
   const wa = whatsappLink(lead.telefono);
   const [notesDraft, setNotesDraft] = useState(lead.notas);
 
@@ -911,7 +897,12 @@ function LeadCompactCard({
   }, [lead.notas]);
 
   return (
-    <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div
+      className={cn(
+        "grid gap-3 rounded-xl border bg-white p-4 shadow-sm",
+        urgentRecontact ? "border-red-200 bg-red-50/40" : "border-slate-200",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-words text-sm font-bold text-slate-950">{lead.nombre || "-"}</h3>
@@ -957,34 +948,19 @@ function LeadCompactCard({
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Estado">
-          <Select
-            className={cn("h-10 border px-2 text-xs font-semibold", statusClasses(lead.estado))}
-            value={lead.estado}
-            onChange={(event) => onUpdate({ estado: event.target.value })}
-          >
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Prioridad">
-          <Select
-            className={cn("h-10 border px-2 text-xs font-semibold", priorityClasses(lead.prioridad))}
-            value={lead.prioridad}
-            onChange={(event) => onUpdate({ prioridad: event.target.value })}
-          >
-            {PRIORITY_OPTIONS.map((priority) => (
-              <option key={priority} value={priority}>
-                {priority}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
+      <Field label="Estado">
+        <Select
+          className={cn("h-10 border px-2 text-xs font-semibold", visibleStatusClasses(lead))}
+          value={currentStatus}
+          onChange={(event) => onUpdate({ estado: event.target.value })}
+        >
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </Select>
+      </Field>
 
       <Field label="Fecha contacto">
         <Input
