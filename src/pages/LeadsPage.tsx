@@ -34,6 +34,11 @@ const STATUS_OPTIONS = [
   "🤝 Cerrado",
 ];
 
+const REQUEST_STATUS_OPTIONS = ["🔎 Buscando", "✅ Encontrado", "⏸️ En pausa", "🚫 Cancelado"];
+
+type LeadTab = "activos" | "archivados" | "encargos";
+type LeadSource = "lead" | "encargo";
+
 type LeadRow = {
   lead_key: string;
   source?: string;
@@ -47,6 +52,7 @@ type LeadRow = {
 
 type Lead = {
   id: string;
+  source: string;
   raw: Record<string, unknown>;
   nombre: string;
   auto: string;
@@ -72,11 +78,15 @@ function normalizeStatus(status: string) {
   return status;
 }
 
-const emptyForm = (): LeadForm => ({
+function isCustomerRequest(lead: Pick<Lead, "source" | "raw">) {
+  return lead.source === "encargo" || lead.raw.tipo === "encargo";
+}
+
+const emptyForm = (source: LeadSource = "lead"): LeadForm => ({
   nombre: "",
   auto: "",
   telefono: "",
-  estado: "⏳ Sin contactar",
+  estado: source === "encargo" ? "🔎 Buscando" : "⏳ Sin contactar",
   notas: "",
   fechaLead: new Date().toISOString().slice(0, 10),
   fechaContacto: "",
@@ -87,6 +97,7 @@ function normalizeLead(row: LeadRow): Lead {
 
   return {
     id: row.lead_key,
+    source: row.source || "",
     raw,
     nombre: row.buyer_name || "",
     auto: row.item_title || "",
@@ -153,6 +164,10 @@ function leadToForm(lead: Lead): LeadForm {
 }
 
 function statusClasses(status: string) {
+  if (status.includes("Buscando")) return "border-violet-200 bg-violet-50 text-violet-700";
+  if (status.includes("Encontrado")) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status.includes("En pausa")) return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status.includes("Cancelado")) return "border-slate-200 bg-slate-100 text-slate-500";
   if (status.includes("Interesado")) return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status.includes("Contactado")) return "border-sky-200 bg-sky-50 text-sky-700";
   if (status.includes("Recontactar")) return "border-amber-200 bg-amber-50 text-amber-700";
@@ -173,7 +188,7 @@ export function LeadsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
-  const [tab, setTab] = useState<"activos" | "archivados">("activos");
+  const [tab, setTab] = useState<LeadTab>("activos");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [contactFilter, setContactFilter] = useState<"todos" | "sin-contacto" | "contactados" | "vencidos">("todos");
@@ -183,6 +198,7 @@ export function LeadsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [formSource, setFormSource] = useState<LeadSource>("lead");
   const [form, setForm] = useState<LeadForm>(emptyForm);
 
   const showToast = (message: string) => {
@@ -218,7 +234,8 @@ export function LeadsPage() {
   }, []);
 
   const stats = useMemo(() => {
-    const activos = leads.filter((lead) => !ARCHIVED.includes(lead.estado));
+    const regularLeads = leads.filter((lead) => !isCustomerRequest(lead));
+    const activos = regularLeads.filter((lead) => !ARCHIVED.includes(lead.estado));
     const count = (status: string) => activos.filter((lead) => visibleStatus(lead) === status).length;
 
     return {
@@ -227,8 +244,9 @@ export function LeadsPage() {
       interesados: count("✅ Interesado"),
       contactados: count(CONTACTED_STATUS),
       recontactar: count(RECONTACT_STATUS),
-      cerrados: leads.filter((lead) => lead.estado === "🤝 Cerrado").length,
-      archivados: leads.filter((lead) => ARCHIVED.includes(lead.estado)).length,
+      cerrados: regularLeads.filter((lead) => lead.estado === "🤝 Cerrado").length,
+      archivados: regularLeads.filter((lead) => ARCHIVED.includes(lead.estado)).length,
+      encargos: leads.filter((lead) => isCustomerRequest(lead)).length,
     };
   }, [leads]);
 
@@ -237,6 +255,10 @@ export function LeadsPage() {
 
     return leads
       .filter((lead) => {
+        const isRequest = isCustomerRequest(lead);
+        if (tab === "encargos" && !isRequest) return false;
+        if (tab !== "encargos" && isRequest) return false;
+
         const isArchived = ARCHIVED.includes(lead.estado);
         if (tab === "activos" && isArchived) return false;
         if (tab === "archivados" && !isArchived) return false;
@@ -256,18 +278,19 @@ export function LeadsPage() {
           (contactFilter === "vencidos" && !hasContactDate && leadDays !== null && leadDays > 3);
         const matchesDateFrom = !dateFrom || (leadInputDate && leadInputDate >= dateFrom);
         const matchesDateTo = !dateTo || (leadInputDate && leadInputDate <= dateTo);
+        const leadStatus = isRequest ? normalizeStatus(lead.estado) : visibleStatus(lead);
 
         return (
           matchesQuery &&
-          (!statusFilter || visibleStatus(lead) === statusFilter) &&
+          (!statusFilter || leadStatus === statusFilter) &&
           matchesContact &&
           matchesDateFrom &&
           matchesDateTo
         );
       })
       .sort((a, b) => {
-        const aUrgent = shouldRecontactNoAnswer(a);
-        const bUrgent = shouldRecontactNoAnswer(b);
+        const aUrgent = !isCustomerRequest(a) && shouldRecontactNoAnswer(a);
+        const bUrgent = !isCustomerRequest(b) && shouldRecontactNoAnswer(b);
         if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
 
         const da = a.fechaLead ? new Date(a.fechaLead).getTime() : Number.NaN;
@@ -298,6 +321,15 @@ export function LeadsPage() {
     dateTo,
   ].filter(Boolean).length;
 
+  const isRequestTab = tab === "encargos";
+  const currentStatusOptions = isRequestTab ? REQUEST_STATUS_OPTIONS : STATUS_OPTIONS;
+
+  const selectTab = (nextTab: LeadTab) => {
+    setTab(nextTab);
+    setStatusFilter("");
+    setContactFilter("todos");
+  };
+
   const updateLead = async (lead: Lead, patch: Partial<LeadForm>) => {
     if (!supabase) return;
 
@@ -307,6 +339,7 @@ export function LeadsPage() {
     }
     const raw = {
       ...lead.raw,
+      ...(isCustomerRequest(lead) ? { tipo: "encargo" } : {}),
       notas: next.notas,
       fecha_contacto: next.fechaContacto,
     };
@@ -325,6 +358,7 @@ export function LeadsPage() {
         item.id === lead.id
           ? normalizeLead({
               lead_key: item.id,
+              source: item.source,
               ...payload,
             })
           : item,
@@ -347,13 +381,15 @@ export function LeadsPage() {
       return;
     }
     if (!form.auto.trim()) {
-      showToast("Falta el auto/publicacion");
+      showToast(formSource === "encargo" ? "Falta el auto buscado" : "Falta el auto/publicacion");
       return;
     }
 
     setSaving(true);
+    const savingSource: LeadSource = editing ? (isCustomerRequest(editing) ? "encargo" : "lead") : formSource;
     const raw = {
       ...(editing?.raw || {}),
+      ...(savingSource === "encargo" ? { tipo: "encargo" } : {}),
       notas: form.notas.trim(),
       fecha_contacto: form.fechaContacto || "",
     };
@@ -365,6 +401,7 @@ export function LeadsPage() {
         phone: form.telefono.trim(),
         status: form.estado,
         date_created: form.fechaLead ? new Date(form.fechaLead).toISOString() : editing.fechaLead,
+        source: savingSource === "encargo" ? "encargo" : editing.source || "manual",
         raw_json: raw,
       };
       const { error: updateError } = await supabase.from("meli_leads").update(payload).eq("lead_key", editing.id);
@@ -377,8 +414,8 @@ export function LeadsPage() {
       }
     } else {
       const row = {
-        lead_key: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        source: "manual",
+        lead_key: `${formSource}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        source: formSource === "encargo" ? "encargo" : "manual",
         buyer_name: form.nombre.trim(),
         item_title: form.auto.trim(),
         phone: form.telefono.trim(),
@@ -392,7 +429,7 @@ export function LeadsPage() {
       } else {
         setIsAdding(false);
         await loadData();
-        showToast("Lead agregado");
+        showToast(formSource === "encargo" ? "Encargo agregado" : "Lead agregado");
       }
     }
     setSaving(false);
@@ -400,12 +437,14 @@ export function LeadsPage() {
 
   const openEdit = (lead: Lead) => {
     setEditing(lead);
+    setFormSource(isCustomerRequest(lead) ? "encargo" : "lead");
     setForm(leadToForm(lead));
   };
 
-  const openAdd = () => {
+  const openAdd = (source: LeadSource = "lead") => {
     setEditing(null);
-    setForm(emptyForm());
+    setFormSource(source);
+    setForm(emptyForm(source));
     setIsAdding(true);
   };
 
@@ -415,13 +454,15 @@ export function LeadsPage() {
   };
 
   const modalOpen = Boolean(editing || isAdding);
+  const modalIsRequest = formSource === "encargo";
+  const modalStatusOptions = modalIsRequest ? REQUEST_STATUS_OPTIONS : STATUS_OPTIONS;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Mercado Libre"
         title="Leads"
-        description="Seguimiento comercial de consultas, estados y contacto por WhatsApp."
+        description="Seguimiento comercial de consultas, estados, encargos y contacto por WhatsApp."
         actions={
           <>
             <a
@@ -435,7 +476,11 @@ export function LeadsPage() {
               <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
               Actualizar
             </Button>
-            <Button onClick={openAdd} disabled={!isSupabaseConfigured}>
+            <Button variant="outline" onClick={() => openAdd("encargo")} disabled={!isSupabaseConfigured}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo encargo
+            </Button>
+            <Button onClick={() => openAdd("lead")} disabled={!isSupabaseConfigured}>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo lead
             </Button>
@@ -443,13 +488,14 @@ export function LeadsPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
         <Metric label="Activos" value={stats.activos} />
         <Metric label="Sin contactar" value={stats.sin} tone="slate" />
         <Metric label="Interesados" value={stats.interesados} tone="green" />
         <Metric label="Contactados" value={stats.contactados} tone="sky" />
         <Metric label="Recontactar" value={stats.recontactar} tone="amber" />
         <Metric label="Cerrados" value={stats.cerrados} tone="blue" />
+        <Metric label="Encargos" value={stats.encargos} tone="violet" />
       </div>
 
       <Card>
@@ -461,7 +507,7 @@ export function LeadsPage() {
                   "rounded-lg px-4 py-2 text-sm font-semibold transition",
                   tab === "activos" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500",
                 )}
-                onClick={() => setTab("activos")}
+                onClick={() => selectTab("activos")}
               >
                 Activos {stats.activos}
               </button>
@@ -470,9 +516,18 @@ export function LeadsPage() {
                   "rounded-lg px-4 py-2 text-sm font-semibold transition",
                   tab === "archivados" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500",
                 )}
-                onClick={() => setTab("archivados")}
+                onClick={() => selectTab("archivados")}
               >
                 Archivados {stats.archivados}
+              </button>
+              <button
+                className={cn(
+                  "rounded-lg px-4 py-2 text-sm font-semibold transition",
+                  tab === "encargos" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500",
+                )}
+                onClick={() => selectTab("encargos")}
+              >
+                Encargos {stats.encargos}
               </button>
             </div>
 
@@ -481,7 +536,7 @@ export function LeadsPage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   className="pl-9"
-                  placeholder="Buscar nombre, auto, telefono..."
+                  placeholder={isRequestTab ? "Buscar cliente, auto buscado, telefono..." : "Buscar nombre, auto, telefono..."}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
@@ -494,21 +549,40 @@ export function LeadsPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <FilterChip active={contactFilter === "todos"} onClick={() => setContactFilter("todos")}>
-              Todos
-            </FilterChip>
-            <FilterChip active={contactFilter === "vencidos"} onClick={() => setContactFilter("vencidos")}>
-              Vencidos
-            </FilterChip>
-            <FilterChip active={contactFilter === "sin-contacto"} onClick={() => setContactFilter("sin-contacto")}>
-              Sin contacto
-            </FilterChip>
-            <FilterChip active={statusFilter === CONTACTED_STATUS} onClick={() => setStatusFilter(statusFilter === CONTACTED_STATUS ? "" : CONTACTED_STATUS)}>
-              Contactado
-            </FilterChip>
-            <FilterChip active={statusFilter === RECONTACT_STATUS} onClick={() => setStatusFilter(statusFilter === RECONTACT_STATUS ? "" : RECONTACT_STATUS)}>
-              Recontactar
-            </FilterChip>
+            {isRequestTab ? (
+              <>
+                <FilterChip active={!statusFilter} onClick={() => setStatusFilter("")}>
+                  Todos
+                </FilterChip>
+                {REQUEST_STATUS_OPTIONS.map((status) => (
+                  <FilterChip
+                    key={status}
+                    active={statusFilter === status}
+                    onClick={() => setStatusFilter(statusFilter === status ? "" : status)}
+                  >
+                    {status.replace(/^[^\s]+ /, "")}
+                  </FilterChip>
+                ))}
+              </>
+            ) : (
+              <>
+                <FilterChip active={contactFilter === "todos"} onClick={() => setContactFilter("todos")}>
+                  Todos
+                </FilterChip>
+                <FilterChip active={contactFilter === "vencidos"} onClick={() => setContactFilter("vencidos")}>
+                  Vencidos
+                </FilterChip>
+                <FilterChip active={contactFilter === "sin-contacto"} onClick={() => setContactFilter("sin-contacto")}>
+                  Sin contacto
+                </FilterChip>
+                <FilterChip active={statusFilter === CONTACTED_STATUS} onClick={() => setStatusFilter(statusFilter === CONTACTED_STATUS ? "" : CONTACTED_STATUS)}>
+                  Contactado
+                </FilterChip>
+                <FilterChip active={statusFilter === RECONTACT_STATUS} onClick={() => setStatusFilter(statusFilter === RECONTACT_STATUS ? "" : RECONTACT_STATUS)}>
+                  Recontactar
+                </FilterChip>
+              </>
+            )}
             {activeFilterCount ? (
               <button className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100" onClick={clearFilters}>
                 Limpiar filtros
@@ -517,21 +591,23 @@ export function LeadsPage() {
           </div>
 
           {showFilters ? (
-            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-6">
               <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 <option value="">Todos los estados</option>
-                {STATUS_OPTIONS.map((status) => (
+                {currentStatusOptions.map((status) => (
                   <option key={status} value={status}>
                     {status}
                   </option>
                 ))}
               </Select>
-              <Select value={contactFilter} onChange={(event) => setContactFilter(event.target.value as typeof contactFilter)}>
-                <option value="todos">Todos los contactos</option>
-                <option value="vencidos">Vencidos sin contacto</option>
-                <option value="sin-contacto">Sin fecha de contacto</option>
-                <option value="contactados">Con fecha de contacto</option>
-              </Select>
+              {!isRequestTab ? (
+                <Select value={contactFilter} onChange={(event) => setContactFilter(event.target.value as typeof contactFilter)}>
+                  <option value="todos">Todos los contactos</option>
+                  <option value="vencidos">Vencidos sin contacto</option>
+                  <option value="sin-contacto">Sin fecha de contacto</option>
+                  <option value="contactados">Con fecha de contacto</option>
+                </Select>
+              ) : null}
               <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} title="Desde" />
               <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} title="Hasta" />
               <Select value={dateOrder} onChange={(event) => setDateOrder(event.target.value as "desc" | "asc")}>
@@ -568,11 +644,12 @@ export function LeadsPage() {
                   lead={lead}
                   onEdit={() => openEdit(lead)}
                   onUpdate={(patch) => updateLead(lead, patch)}
+                  statusOptions={isCustomerRequest(lead) ? REQUEST_STATUS_OPTIONS : STATUS_OPTIONS}
                 />
               ))
             ) : (
               <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-                Sin resultados
+                {isRequestTab ? "Sin encargos" : "Sin resultados"}
               </div>
             )}
           </div>
@@ -594,10 +671,10 @@ export function LeadsPage() {
                 <tr>
                   <th className="px-2 py-3">#</th>
                   <th className="px-2 py-3">Nombre</th>
-                  <th className="px-2 py-3">Auto</th>
+                  <th className="px-2 py-3">{isRequestTab ? "Buscado" : "Auto"}</th>
                   <th className="px-2 py-3">Telefono</th>
                   <th className="px-2 py-3">Estado</th>
-                  <th className="px-2 py-3">Lead</th>
+                  <th className="px-2 py-3">{isRequestTab ? "Encargo" : "Lead"}</th>
                   <th className="px-2 py-3">Contacto</th>
                   <th className="px-2 py-3">Notas</th>
                   <th className="px-2 py-3"></th>
@@ -618,12 +695,13 @@ export function LeadsPage() {
                       lead={lead}
                       onEdit={() => openEdit(lead)}
                       onUpdate={(patch) => updateLead(lead, patch)}
+                      statusOptions={isCustomerRequest(lead) ? REQUEST_STATUS_OPTIONS : STATUS_OPTIONS}
                     />
                   ))
                 ) : (
                   <tr>
                     <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
-                      Sin resultados
+                      {isRequestTab ? "Sin encargos" : "Sin resultados"}
                     </td>
                   </tr>
                 )}
@@ -640,14 +718,16 @@ export function LeadsPage() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-              <h2 className="text-lg font-bold text-slate-950">{editing ? "Editar lead" : "Nuevo lead"}</h2>
+              <h2 className="text-lg font-bold text-slate-950">
+                {editing ? "Editar" : "Nuevo"} {modalIsRequest ? "encargo" : "lead"}
+              </h2>
               <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={closeModal}>
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="grid gap-4 p-5">
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Nombre">
+                <Field label={modalIsRequest ? "Cliente" : "Nombre"}>
                   <Input value={form.nombre} onChange={(event) => setForm({ ...form, nombre: event.target.value })} />
                 </Field>
                 <Field label="Telefono">
@@ -657,12 +737,12 @@ export function LeadsPage() {
                   />
                 </Field>
               </div>
-              <Field label="Auto / publicacion">
+              <Field label={modalIsRequest ? "Auto buscado" : "Auto / publicacion"}>
                 <Input value={form.auto} onChange={(event) => setForm({ ...form, auto: event.target.value })} />
               </Field>
               <Field label="Estado">
                 <Select value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value })}>
-                  {STATUS_OPTIONS.map((status) => (
+                  {modalStatusOptions.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -677,7 +757,7 @@ export function LeadsPage() {
                     onChange={(event) => setForm({ ...form, fechaContacto: event.target.value })}
                   />
                 </Field>
-                <Field label="Fecha lead">
+                <Field label={modalIsRequest ? "Fecha encargo" : "Fecha lead"}>
                   <Input
                     type="date"
                     value={form.fechaLead}
@@ -718,13 +798,14 @@ function Metric({
 }: {
   label: string;
   value: number;
-  tone?: "pink" | "slate" | "green" | "sky" | "amber" | "blue";
+  tone?: "pink" | "slate" | "green" | "sky" | "violet" | "amber" | "blue";
 }) {
   const tones = {
     pink: "text-[#ff0a8a]",
     slate: "text-slate-900",
     green: "text-emerald-600",
     sky: "text-sky-600",
+    violet: "text-violet-600",
     amber: "text-amber-600",
     blue: "text-blue-600",
   };
@@ -768,11 +849,13 @@ function LeadTableRow({
   lead,
   onEdit,
   onUpdate,
+  statusOptions,
 }: {
   index: number;
   lead: Lead;
   onEdit: () => void;
   onUpdate: (patch: Partial<LeadForm>) => void;
+  statusOptions: string[];
 }) {
   const days = daysSince(lead.fechaLead);
   const urgentRecontact = shouldRecontactNoAnswer(lead);
@@ -819,7 +902,7 @@ function LeadTableRow({
           value={currentStatus}
           onChange={(event) => onUpdate({ estado: event.target.value })}
         >
-          {STATUS_OPTIONS.map((status) => (
+          {statusOptions.map((status) => (
             <option key={status} value={status}>
               {status}
             </option>
@@ -881,10 +964,12 @@ function LeadCompactCard({
   lead,
   onEdit,
   onUpdate,
+  statusOptions,
 }: {
   lead: Lead;
   onEdit: () => void;
   onUpdate: (patch: Partial<LeadForm>) => void;
+  statusOptions: string[];
 }) {
   const days = daysSince(lead.fechaLead);
   const urgentRecontact = shouldRecontactNoAnswer(lead);
@@ -954,7 +1039,7 @@ function LeadCompactCard({
           value={currentStatus}
           onChange={(event) => onUpdate({ estado: event.target.value })}
         >
-          {STATUS_OPTIONS.map((status) => (
+          {statusOptions.map((status) => (
             <option key={status} value={status}>
               {status}
             </option>
