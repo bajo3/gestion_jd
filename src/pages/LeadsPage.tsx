@@ -567,18 +567,18 @@ export function LeadsPage() {
             )}
           </div>
 
-          <div className="hidden overflow-hidden rounded-xl border border-slate-200 lg:block">
-            <table className="w-full table-fixed border-collapse bg-white text-left text-xs xl:text-sm">
+          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 lg:block">
+            <table className="min-w-[1120px] w-full table-fixed border-collapse bg-white text-left text-xs xl:text-sm">
               <colgroup>
                 <col className="w-[3%]" />
                 <col className="w-[9%]" />
-                <col className="w-[19%]" />
-                <col className="w-[12%]" />
-                <col className="w-[15%]" />
-                <col className="w-[7%]" />
-                <col className="w-[12%]" />
+                <col className="w-[16%]" />
                 <col className="w-[10%]" />
-                <col className="w-[9%]" />
+                <col className="w-[14%]" />
+                <col className="w-[7%]" />
+                <col className="w-[11%]" />
+                <col className="w-[18%]" />
+                <col className="w-[8%]" />
                 <col className="w-[4%]" />
               </colgroup>
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -853,7 +853,7 @@ function LeadTableRow({
       </td>
       <td className="px-2 py-3">
         <Textarea
-          className="min-h-14 w-full resize-none px-2 py-2 text-xs"
+          className="min-h-[72px] w-full resize-y px-3 py-2 text-sm leading-5"
           value={notesDraft}
           placeholder="Nota..."
           onChange={(event) => setNotesDraft(event.target.value)}
@@ -997,7 +997,7 @@ function LeadCompactCard({
 
       <Field label="Notas">
         <Textarea
-          className="min-h-16 resize-none px-2 py-2 text-xs"
+          className="min-h-24 resize-y px-3 py-2 text-sm leading-5"
           value={notesDraft}
           placeholder="Nota..."
           onChange={(event) => setNotesDraft(event.target.value)}
