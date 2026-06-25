@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateAutorizacionPdf } from "@/pdf/autorizacionPdf";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { AutorizacionFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -29,6 +31,13 @@ const initialState: AutorizacionFormValues = {
 
 export function AutorizacionPage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<AutorizacionFormValues>("autorizacion");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Autorizacion de Conduccion" description="Permiso de autorizacion para circular y constancia asociada.">

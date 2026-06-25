@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -5,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateTestDrivePdf } from "@/pdf/testDrivePdf";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { TestDriveFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -58,6 +60,13 @@ function CheckField({
 
 export function TestDrivePage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<TestDriveFormValues>("testDrive");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Test Drive" description="Formulario operativo y acuerdo de exoneracion de responsabilidad.">

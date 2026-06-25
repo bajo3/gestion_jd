@@ -9,6 +9,7 @@ import { useObjectState } from "@/hooks/useObjectState";
 import { parseNumberish } from "@/lib/utils";
 import { amountToLetters, generateReciboPdf } from "@/pdf/reciboPdf";
 import { commitReceiptNumber, getNextReceiptNumber } from "@/services/receiptCounterService";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { ReciboFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -35,6 +36,13 @@ const initialState: ReciboFormValues = {
 
 export function ReciboPage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<ReciboFormValues>("recibo");
+    if (draft) {
+      form.replace({ ...initialState, ...draft, reciboNro: draft.reciboNro ?? initialState.reciboNro });
+    }
+  }, [form]);
 
   useEffect(() => {
     const amount = parseNumberish(values.monto);

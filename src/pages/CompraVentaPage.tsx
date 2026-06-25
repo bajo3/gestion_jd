@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -5,6 +6,7 @@ import { FormField } from "@/components/shared/FormField";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateCompraVentaPdf } from "@/pdf/compraVentaPdf";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { CompraVentaFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -26,6 +28,13 @@ const initialState: CompraVentaFormValues = {
 
 export function CompraVentaPage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<CompraVentaFormValues>("compraVenta");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Compra y Venta" description="Boleto de compra venta migrado desde la version original.">

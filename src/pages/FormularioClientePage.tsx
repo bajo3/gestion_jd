@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
 type ClientState = {
@@ -34,6 +35,13 @@ function ImagePreview({ file }: { file: File | null }) {
 
 export function FormularioClientePage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<Pick<ClientState, "dni" | "cuil" | "situacionLaboral">>("formularioCliente");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Formulario Cliente" description="Datos basicos, situacion laboral y documentacion de DNI para resumen interno.">

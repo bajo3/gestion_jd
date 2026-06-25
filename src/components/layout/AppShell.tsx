@@ -17,6 +17,7 @@ import {
 import { logout } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { VehicleAssistant } from "@/components/assistant/VehicleAssistant";
 
 const SIDEBAR_KEY = "jd-sidebar-collapsed";
 
@@ -215,6 +216,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <VehicleAssistant />
     </div>
   );
 }

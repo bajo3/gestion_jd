@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -6,6 +7,7 @@ import { FormField } from "@/components/shared/FormField";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { DateroFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -42,6 +44,13 @@ const initialState: DateroFormValues = {
 
 export function DateroPage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<DateroFormValues>("datero");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Datero" description="Formulario para transferencia con datos del comprador, operacion y auto entregado.">

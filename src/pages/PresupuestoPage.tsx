@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -6,6 +7,7 @@ import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generatePresupuestoPdf } from "@/pdf/presupuestoPdf";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { PresupuestoFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -34,6 +36,13 @@ const initialState: PresupuestoFormValues = {
 
 export function PresupuestoPage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<PresupuestoFormValues>("presupuesto");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Presupuesto" description="Presupuesto de operacion con credito, entrega y gastos.">
