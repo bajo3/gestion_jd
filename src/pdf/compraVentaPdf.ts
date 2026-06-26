@@ -94,6 +94,23 @@ export async function generateCompraVentaPdf(values: CompraVentaFormValues) {
     doc.text(value || "________________________", x + doc.getTextWidth(`${label}: `) + 3, y);
   };
 
+  const columnField = (label: string, value: string, x: number, fieldWidth: number, fieldY = y) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.7);
+    doc.text(`${label}:`, x, fieldY);
+    doc.setFont("helvetica", "normal");
+    const valueX = x + doc.getTextWidth(`${label}: `) + 2.5;
+    doc.text(value || "________________", valueX, fieldY, { maxWidth: fieldWidth - (valueX - x) });
+  };
+
+  const twoColumnFields = (left: [string, string], right: [string, string]) => {
+    const gap = 10;
+    const colW = (W - gap) / 2;
+    columnField(left[0], left[1], L, colW);
+    columnField(right[0], right[1], L + colW + gap, colW);
+    y += 7;
+  };
+
   const paragraph = (text: string, fontSize = 10.5, lineHeight = 5) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fontSize);
@@ -124,33 +141,41 @@ export async function generateCompraVentaPdf(values: CompraVentaFormValues) {
   y += 14;
 
   section("Datos del automotor");
-  row("Dominio", values.dominio || "________________");
-  y += 8;
-  row("Marca", values.marca || "__________");
-  row("Modelo", values.modelo || "__________", 105);
-  y += 8;
-  row("Tipo", values.tipo || "__________");
-  y += 8;
-  row("Nro Motor", values.nMotor || "__________");
-  row("Nro Chasis", values.nChasis || "__________", 105);
-  y += 13;
+  twoColumnFields(["Dominio", values.dominio || "________________"], ["Tipo", values.tipo || "__________"]);
+  twoColumnFields(["Marca", values.marca || "__________"], ["Modelo", values.modelo || "__________"]);
+  twoColumnFields(["Nro Motor", values.nMotor || "__________"], ["Nro Chasis", values.nChasis || "__________"]);
+  y += 6;
 
   section("Observaciones");
   paragraph(values.observaciones || "Sin observaciones.");
 
   if (values.sinGarantia) {
     section("Clausula sin garantia");
-    paragraph(buildSinGarantiaClause(values), 9, 4.35);
+    paragraph(buildSinGarantiaClause(values), 8.5, 4.05);
   }
 
-  section("Datos del vendedor");
-  row("Nombre", nombreVendedor);
-  y += 8;
-  row("Domicilio", domicilioVendedor);
-  y += 8;
-  row("CUIT", cuitVendedor);
-  row("Telefono", telefonoVendedor, 105);
-  y += 6;
+  section("Datos de las partes");
+  const gap = 10;
+  const colW = (W - gap) / 2;
+  const leftX = L;
+  const rightX = L + colW + gap;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  doc.text("Comprador", leftX, y);
+  doc.text("Vendedor", rightX, y);
+  y += 7;
+  columnField("Nombre", values.recibido || "________________________", leftX, colW);
+  columnField("Nombre", nombreVendedor, rightX, colW);
+  y += 7;
+  columnField("DNI", values.numeroDoc || "____________", leftX, colW);
+  columnField("CUIT", cuitVendedor, rightX, colW);
+  y += 7;
+  columnField("Domicilio", values.domicilio || "________________________", leftX, colW);
+  columnField("Domicilio", domicilioVendedor, rightX, colW);
+  y += 7;
+  columnField("Telefono", values.telefono || "____________", leftX, colW);
+  columnField("Telefono", telefonoVendedor, rightX, colW);
+  y += 18;
 
   if (y > pageH - 12) {
     doc.addPage();
@@ -159,13 +184,13 @@ export async function generateCompraVentaPdf(values: CompraVentaFormValues) {
   }
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.line(L, y, L + 70, y);
-  doc.line(120, y, R, y);
-  doc.text("Firma del Comprador", L, y + 5);
-  doc.text("Firma del Vendedor", 120, y + 5);
+  doc.line(leftX, y, leftX + colW, y);
+  doc.line(rightX, y, rightX + colW, y);
+  doc.text("Firma del Comprador", leftX, y + 5);
+  doc.text("Firma del Vendedor", rightX, y + 5);
   y += 14;
-  doc.text(`Aclaracion: ${values.recibido || "________________________"}`, L, y);
-  doc.text("Aclaracion: ____________________________", 120, y);
+  doc.text(`Aclaracion: ${values.recibido || "________________________"}`, leftX, y);
+  doc.text("Aclaracion: ____________________________", rightX, y);
 
   const fileName = sanitizeFileName(values.recibido || "sin_nombre", "sin_nombre");
   doc.save(`boleto_${fileName}.pdf`);
