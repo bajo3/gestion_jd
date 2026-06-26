@@ -1,5 +1,5 @@
 import type { TestDriveFormValues } from "@/types/forms";
-import { createPdf, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
 
 export async function generateTestDrivePdf(values: TestDriveFormValues) {
   const doc = createPdf();
@@ -36,7 +36,16 @@ export async function generateTestDrivePdf(values: TestDriveFormValues) {
       doc.setDrawColor(0);
       if (field.value) {
         doc.setFont("helvetica", "normal");
-        doc.text(String(field.value), lineX1 + 1, y);
+        const value = String(field.value);
+        const availableWidth = Math.max(12, lineX2 - lineX1 - 2);
+        let valueFontSize = 10;
+        doc.setFontSize(valueFontSize);
+        while (doc.getTextWidth(value) > availableWidth && valueFontSize > 7) {
+          valueFontSize -= 0.5;
+          doc.setFontSize(valueFontSize);
+        }
+        doc.text(value, lineX1 + 1, y, { maxWidth: availableWidth });
+        doc.setFontSize(10);
       }
     });
   }
@@ -72,9 +81,7 @@ export async function generateTestDrivePdf(values: TestDriveFormValues) {
   }
 
   const yStart = 20;
-  if (logoDataURL) {
-    doc.addImage(logoDataURL, "PNG", L, yStart, 30, 12);
-  }
+  drawPdfLogo(doc, logoDataURL, L, yStart - 6, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.text("FORMULARIO TEST DRIVE", 105, yStart + 7, { align: "center" });

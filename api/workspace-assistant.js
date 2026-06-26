@@ -111,7 +111,7 @@ Secciones disponibles:
 - formularioCliente: /formulario-cliente
 
 Documentos y campos permitidos:
-compraVenta: fecha, recibido, numeroDoc, telefono, domicilio, cantidadNum, dominio, marca, modelo, tipo, nMotor, nChasis, observaciones.
+compraVenta: fecha, recibido, numeroDoc, telefono, domicilio, cantidadNum, dominio, marca, modelo, tipo, nMotor, nChasis, observaciones, sinGarantia.
 autorizacion: diasValidos, lugar, fecha, autorizado, titular, marca, modelo, tipo, anio, motor, chasis, dominio, domicilioAuto, otrasCaracteristicas, propietarioNombre, propietarioDni, propietarioDomicilio, propietarioLocalidad.
 datero: nombre, dni, fechaNacimiento, lugar, direccionReal, direccionDni, localidad, codigoPostal, provincia, telefono, celular, email, cuil, condicionFiscal, estadoCivil, detalles, conyugeNombre, conyugeDni, fechaOperacion, dominio, tomaCredito, creditoTotal, creditoCuotas, entregaPpa, ppaDominio, ppaMarca, ppaModelo, ppaAnio.
 recibo: fecha, tipo, duplicado, cliente, doc, domicilio, localidad, concepto, monto, montoLetras, forma, detallePago, vehiculo, vehiculoDominio, obs.

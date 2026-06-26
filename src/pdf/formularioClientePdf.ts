@@ -1,4 +1,4 @@
-import { createPdf, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
 
 function normalizeImageForPdf(image: HTMLImageElement) {
   const maxDimension = 1800;
@@ -57,23 +57,21 @@ export async function generateFormularioClientePdf(payload: {
   const contentWidth = pageWidth - margin * 2;
   let y = 16;
 
-  if (logoDataUrl) {
-    doc.addImage(logoDataUrl, "PNG", margin, y - 3, 24, 10);
-  }
+  drawPdfLogo(doc, logoDataUrl, margin, y - 5, 42);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
-  doc.text("FORMULARIO CLIENTE", pageWidth / 2, y + 2, { align: "center" });
+  doc.text("FORMULARIO CLIENTE", pageWidth / 2, y + 5, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
-  doc.text("Documentacion para gestion administrativa", pageWidth / 2, y + 8, { align: "center" });
+  doc.text("Documentacion para gestion administrativa", pageWidth / 2, y + 11, { align: "center" });
   doc.text(
     `Fecha de generacion: ${new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date())}`,
     pageWidth / 2,
-    y + 14,
+    y + 17,
     { align: "center" },
   );
-  y += 23;
+  y += 27;
 
   const sectionTitle = (title: string) => {
     doc.setFillColor(240, 244, 248);

@@ -12,6 +12,7 @@ export type CompraVentaFormValues = {
   nMotor: string;
   nChasis: string;
   observaciones: string;
+  sinGarantia: boolean;
 };
 
 export type AutorizacionFormValues = {

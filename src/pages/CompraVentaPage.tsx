@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/shared/FormField";
@@ -24,6 +25,7 @@ const initialState: CompraVentaFormValues = {
   nMotor: "",
   nChasis: "",
   observaciones: "",
+  sinGarantia: false,
 };
 
 export function CompraVentaPage() {
@@ -85,6 +87,10 @@ export function CompraVentaPage() {
         <FormField label="Observaciones">
           <Textarea value={values.observaciones} onChange={(event) => form.set("observaciones", event.target.value)} />
         </FormField>
+        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+          <Checkbox checked={values.sinGarantia} onChange={(event) => form.set("sinGarantia", event.target.checked)} />
+          Sin garantia
+        </label>
       </FormSection>
 
       <div className="flex justify-end">

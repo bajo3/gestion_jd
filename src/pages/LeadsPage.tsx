@@ -24,12 +24,15 @@ const CONTACTED_STATUS = "💬 Contactado";
 const RECONTACT_STATUS = "📞 Recontactar";
 const NO_ANSWER_STATUS = "❌ No contesta";
 
+const MOVE_TO_REQUEST_STATUS = "Encargos";
+
 const STATUS_OPTIONS = [
   "⏳ Sin contactar",
   "✅ Interesado",
   CONTACTED_STATUS,
   RECONTACT_STATUS,
   NO_ANSWER_STATUS,
+  MOVE_TO_REQUEST_STATUS,
   "🚫 No interesado",
   "🤝 Cerrado",
 ];
@@ -172,6 +175,7 @@ function statusClasses(status: string) {
   if (status.includes("Contactado")) return "border-sky-200 bg-sky-50 text-sky-700";
   if (status.includes("Recontactar")) return "border-amber-200 bg-amber-50 text-amber-700";
   if (status.includes("No contesta")) return "border-red-200 bg-red-50 text-red-700";
+  if (status.includes("Encargos")) return "border-violet-200 bg-violet-50 text-violet-700";
   if (status.includes("No interesado")) return "border-slate-200 bg-slate-100 text-slate-500";
   if (status.includes("Cerrado")) return "border-blue-200 bg-blue-50 text-blue-700";
   return "border-slate-200 bg-white text-slate-700";
@@ -333,16 +337,21 @@ export function LeadsPage() {
   const updateLead = async (lead: Lead, patch: Partial<LeadForm>) => {
     if (!supabase) return;
 
+    const moveToRequest = patch.estado === MOVE_TO_REQUEST_STATUS;
     const next = { ...leadToForm(lead), ...patch };
+    if (moveToRequest) {
+      next.estado = REQUEST_STATUS_OPTIONS[0];
+    }
     if (patch.estado && !next.fechaContacto) {
       next.fechaContacto = new Date().toISOString().slice(0, 10);
     }
     const raw = {
       ...lead.raw,
-      ...(isCustomerRequest(lead) ? { tipo: "encargo" } : {}),
+      ...(isCustomerRequest(lead) || moveToRequest ? { tipo: "encargo" } : {}),
       notas: next.notas,
       fecha_contacto: next.fechaContacto,
     };
+    const source = moveToRequest ? "encargo" : lead.source;
 
     const payload = {
       buyer_name: next.nombre,
@@ -350,6 +359,7 @@ export function LeadsPage() {
       phone: next.telefono,
       status: next.estado,
       date_created: next.fechaLead ? new Date(next.fechaLead).toISOString() : lead.fechaLead,
+      source,
       raw_json: raw,
     };
 
@@ -358,7 +368,7 @@ export function LeadsPage() {
         item.id === lead.id
           ? normalizeLead({
               lead_key: item.id,
-              source: item.source,
+              source,
               ...payload,
             })
           : item,
@@ -370,7 +380,7 @@ export function LeadsPage() {
       showToast("Error al guardar");
       await loadData();
     } else {
-      showToast("Guardado");
+      showToast(moveToRequest ? "Movido a encargos" : "Guardado");
     }
   };
 
@@ -386,7 +396,15 @@ export function LeadsPage() {
     }
 
     setSaving(true);
-    const savingSource: LeadSource = editing ? (isCustomerRequest(editing) ? "encargo" : "lead") : formSource;
+    const moveToRequest = form.estado === MOVE_TO_REQUEST_STATUS;
+    const savingSource: LeadSource = editing
+      ? isCustomerRequest(editing) || moveToRequest
+        ? "encargo"
+        : "lead"
+      : moveToRequest
+        ? "encargo"
+        : formSource;
+    const savingStatus = moveToRequest ? REQUEST_STATUS_OPTIONS[0] : form.estado;
     const raw = {
       ...(editing?.raw || {}),
       ...(savingSource === "encargo" ? { tipo: "encargo" } : {}),
@@ -399,7 +417,7 @@ export function LeadsPage() {
         buyer_name: form.nombre.trim(),
         item_title: form.auto.trim(),
         phone: form.telefono.trim(),
-        status: form.estado,
+        status: savingStatus,
         date_created: form.fechaLead ? new Date(form.fechaLead).toISOString() : editing.fechaLead,
         source: savingSource === "encargo" ? "encargo" : editing.source || "manual",
         raw_json: raw,
@@ -414,12 +432,12 @@ export function LeadsPage() {
       }
     } else {
       const row = {
-        lead_key: `${formSource}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        source: formSource === "encargo" ? "encargo" : "manual",
+        lead_key: `${savingSource}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        source: savingSource === "encargo" ? "encargo" : "manual",
         buyer_name: form.nombre.trim(),
         item_title: form.auto.trim(),
         phone: form.telefono.trim(),
-        status: form.estado,
+        status: savingStatus,
         date_created: form.fechaLead ? new Date(form.fechaLead).toISOString() : new Date().toISOString(),
         raw_json: raw,
       };

@@ -1,6 +1,6 @@
 import type { PresupuestoFormValues } from "@/types/forms";
 import { parseNumberish } from "@/lib/utils";
-import { createPdf, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
 
 function parseMoney(v: string) {
   return Math.max(0, Math.round(parseNumberish(v)));
@@ -32,16 +32,11 @@ export async function generatePresupuestoPdf(values: PresupuestoFormValues) {
   const creditoIncluyeExtras = tomaCredito && creditoTotal > 0 && (gastosAdm > 0 || transferencia > 0);
   const totalOperacion = entregaTotal + creditoTotal + (creditoIncluyeExtras ? 0 : gastosAdm + transferencia);
 
-  if (logo) {
-    doc.addImage(logo, "PNG", margin, y - 6, 14, 14);
-  }
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Jesus Diaz Automotores", margin + (logo ? 18 : 0), y);
+  drawPdfLogo(doc, logo, margin, y - 6, 44);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.text(`Fecha: ${values.fecha}`, pageW - margin, y, { align: "right" });
-  y += 8;
+  y += 12;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
