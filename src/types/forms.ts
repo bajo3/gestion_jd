@@ -49,6 +49,7 @@ export type DateroFormValues = {
   telefono: string;
   celular: string;
   email: string;
+  instagram: string;
   cuil: string;
   condicionFiscal: string;
   estadoCivil: string;

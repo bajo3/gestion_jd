@@ -98,6 +98,7 @@ export async function generateDateroPdf(values: DateroFormValues) {
   field("Telefono", values.telefono);
   field("Celular", values.celular);
   field("Email", values.email);
+  field("Instagram", values.instagram);
   field("CUIL/CUIT", values.cuil);
   field("Condicion Fiscal", values.condicionFiscal);
   field("Estado Civil", values.estadoCivil);
