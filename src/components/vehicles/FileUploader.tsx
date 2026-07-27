@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Upload } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/shared/FormField";
 import type { VehicleFileCategory } from "@/types/vehicles";
 
-type PendingFile = {
-  file: File;
+export type PendingFiles = {
+  files: File[];
   category: VehicleFileCategory;
   notes: string;
 };
@@ -15,11 +15,26 @@ type PendingFile = {
 export function FileUploader({
   onAdd,
 }: {
-  onAdd: (file: PendingFile) => void;
+  onAdd: (pending: PendingFiles) => void | Promise<void>;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [category, setCategory] = useState<VehicleFileCategory>("foto");
   const [notes, setNotes] = useState("");
+  const [subiendo, setSubiendo] = useState(false);
+
+  function quitarArchivo(index: number) {
+    setFiles((actuales) => actuales.filter((_, i) => i !== index));
+  }
+
+  async function confirmar() {
+    if (!files.length || subiendo) return;
+
+    setSubiendo(true);
+    await onAdd({ files, category, notes });
+    setFiles([]);
+    setNotes("");
+    setSubiendo(false);
+  }
 
   return (
     <div className="space-y-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -30,16 +45,17 @@ export function FileUploader({
         <div>
           <p className="font-semibold">Adjuntar documentacion</p>
           <p className="text-sm text-slate-500">
-            Si no hay Supabase configurado, guardamos metadata localmente.
+            Podes elegir varios archivos a la vez: se suben todos juntos con la misma categoria.
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <FormField label="Archivo">
+        <FormField label="Archivos">
           <Input
             type="file"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            multiple
+            onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
           />
         </FormField>
         <FormField label="Categoria">
@@ -57,20 +73,35 @@ export function FileUploader({
             <option value="otro">Otro</option>
           </Select>
         </FormField>
-        <FormField label="Notas">
+        <FormField label="Notas" hint="Se aplica a todos los archivos de esta tanda.">
           <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Comentario interno" />
         </FormField>
       </div>
 
-      <Button
-        onClick={() => {
-          if (!file) return;
-          onAdd({ file, category, notes });
-          setFile(null);
-          setNotes("");
-        }}
-      >
-        Agregar adjunto
+      {files.length ? (
+        <ul className="space-y-1 rounded-xl border border-slate-200 bg-white p-3">
+          {files.map((file, index) => (
+            <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate text-slate-700">{file.name}</span>
+              <button
+                type="button"
+                onClick={() => quitarArchivo(index)}
+                className="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-red-600"
+                aria-label={`Quitar ${file.name}`}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <Button onClick={confirmar} disabled={!files.length || subiendo}>
+        {subiendo
+          ? "Subiendo..."
+          : files.length > 1
+            ? `Agregar ${files.length} adjuntos`
+            : "Agregar adjunto"}
       </Button>
     </div>
   );

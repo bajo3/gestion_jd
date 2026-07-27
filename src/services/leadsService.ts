@@ -1,6 +1,12 @@
+import {
+  isArchivedLeadStatus,
+  leadStatusLabel,
+  parseLeadStatus,
+  PENDING_LEAD_STATUSES,
+  REQUEST_STATUS_LABELS,
+  type LeadStatus,
+} from "@/lib/leadStatus";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
-
-const ARCHIVED_WORDS = ["Cerrado", "No interesado"];
 
 type LeadRow = {
   lead_key: string;
@@ -19,6 +25,9 @@ export type AssistantLead = {
   nombre: string;
   auto: string;
   telefono: string;
+  /** Clave canonica del estado; es la que se debe usar para comparar. */
+  status: LeadStatus;
+  /** Etiqueta con emoji, solo para mostrar. */
   estado: string;
   notas: string;
   fechaLead: string;
@@ -27,18 +36,6 @@ export type AssistantLead = {
   daysSinceLead: number | null;
   needsReply: boolean;
 };
-
-function normalizeStatus(status: string) {
-  return status;
-}
-
-function hasStatusWord(status: string, word: string) {
-  return status.toLowerCase().includes(word.toLowerCase());
-}
-
-function isArchivedStatus(status: string) {
-  return ARCHIVED_WORDS.some((word) => hasStatusWord(status, word));
-}
 
 function toInputDate(value: string) {
   if (!value) return "";
@@ -62,14 +59,15 @@ function isCustomerRequest(row: Pick<LeadRow, "source" | "raw_json">) {
 
 function normalizeLead(row: LeadRow): AssistantLead {
   const raw = row.raw_json && typeof row.raw_json === "object" ? row.raw_json : {};
-  const estado = normalizeStatus(row.status || "⏳ Sin contactar");
   const fechaLead = row.date_created || "";
   const fechaContacto = String(raw.fecha_contacto || "");
   const isRequest = isCustomerRequest(row);
+  const status = parseLeadStatus(row.status);
+  // Los encargos usan su propia lista de estados, asi que se muestra el texto tal cual vino.
+  const estado = isRequest ? row.status || REQUEST_STATUS_LABELS.buscando : leadStatusLabel(status);
   const leadDays = daysSince(fechaLead);
   const contactDate = toInputDate(fechaContacto);
-  const archived = isArchivedStatus(estado);
-  const noAnswerDays = estado.includes("No contesta") ? daysSince(fechaContacto || fechaLead) : null;
+  const noAnswerDays = status === "no_contesta" ? daysSince(fechaContacto || fechaLead) : null;
 
   return {
     id: row.lead_key,
@@ -77,6 +75,7 @@ function normalizeLead(row: LeadRow): AssistantLead {
     nombre: row.buyer_name || "",
     auto: row.item_title || "",
     telefono: row.phone || "",
+    status,
     estado,
     notas: String(raw.notas || ""),
     fechaLead,
@@ -85,8 +84,10 @@ function normalizeLead(row: LeadRow): AssistantLead {
     daysSinceLead: leadDays,
     needsReply:
       !isRequest &&
-      !archived &&
-      (!contactDate || hasStatusWord(estado, "Sin contactar") || hasStatusWord(estado, "Recontactar") || (noAnswerDays !== null && noAnswerDays >= 3)),
+      !isArchivedLeadStatus(status) &&
+      (!contactDate ||
+        PENDING_LEAD_STATUSES.includes(status) ||
+        (noAnswerDays !== null && noAnswerDays >= 3)),
   };
 }
 
@@ -104,20 +105,21 @@ export async function listAssistantLeads(): Promise<AssistantLead[]> {
 
 export function summarizeLeads(leads: AssistantLead[]) {
   const regularLeads = leads.filter((lead) => !lead.isRequest);
-  const active = regularLeads.filter((lead) => !isArchivedStatus(lead.estado));
+  const active = regularLeads.filter((lead) => !isArchivedLeadStatus(lead.status));
   const needsReply = active.filter((lead) => lead.needsReply);
   const requests = leads.filter((lead) => lead.isRequest);
+  const countByStatus = (status: LeadStatus) => active.filter((lead) => lead.status === status).length;
 
   return {
     total: regularLeads.length,
     active: active.length,
     needsReply: needsReply.length,
     requests: requests.length,
-    noContact: active.filter((lead) => hasStatusWord(lead.estado, "Sin contactar")).length,
-    interested: active.filter((lead) => hasStatusWord(lead.estado, "Interesado")).length,
-    contacted: active.filter((lead) => hasStatusWord(lead.estado, "Contactado")).length,
-    recontact: active.filter((lead) => hasStatusWord(lead.estado, "Recontactar") || lead.needsReply).length,
-    closed: regularLeads.filter((lead) => hasStatusWord(lead.estado, "Cerrado")).length,
+    noContact: countByStatus("sin_contactar"),
+    interested: countByStatus("interesado"),
+    contacted: countByStatus("contactado"),
+    recontact: active.filter((lead) => lead.status === "recontactar" || lead.needsReply).length,
+    closed: regularLeads.filter((lead) => lead.status === "cerrado").length,
     urgent: needsReply
       .sort((a, b) => (b.daysSinceLead ?? 0) - (a.daysSinceLead ?? 0))
       .slice(0, 8),

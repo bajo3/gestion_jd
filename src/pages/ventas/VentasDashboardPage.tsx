@@ -6,10 +6,12 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { listCommercialAlerts } from "@/services/commercialAlertsService";
+import { listRecentVehicleEvents } from "@/services/vehicleEventsService";
 import { listVehicles } from "@/services/vehiclesService";
 import type { CommercialAlert } from "@/types/commercialAlerts";
+import type { VehicleEvent } from "@/types/vehicleEvents";
 import type { Vehicle } from "@/types/vehicles";
 
 const activeStatuses = ["pending", "postponed"];
@@ -46,13 +48,28 @@ function enrichAlerts(alerts: CommercialAlert[], vehicles: Vehicle[]) {
 export function VentasDashboardPage() {
   const [alerts, setAlerts] = useState<CommercialAlert[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [events, setEvents] = useState<VehicleEvent[]>([]);
 
   useEffect(() => {
-    Promise.all([listCommercialAlerts(), listVehicles()]).then(([nextAlerts, nextVehicles]) => {
-      setAlerts(nextAlerts);
-      setVehicles(nextVehicles);
-    });
+    Promise.all([listCommercialAlerts(), listVehicles(), listRecentVehicleEvents(10)]).then(
+      ([nextAlerts, nextVehicles, nextEvents]) => {
+        setAlerts(nextAlerts);
+        setVehicles(nextVehicles);
+        setEvents(nextEvents);
+      },
+    );
   }, []);
+
+  const vehicleLabels = useMemo(() => {
+    return new Map(
+      vehicles.map((vehicle) => [
+        vehicle.id,
+        [vehicle.brand, vehicle.model, vehicle.licensePlate && `· ${vehicle.licensePlate}`]
+          .filter(Boolean)
+          .join(" ") || "Vehiculo",
+      ]),
+    );
+  }, [vehicles]);
 
   const enrichedAlerts = useMemo(() => enrichAlerts(alerts, vehicles), [alerts, vehicles]);
   const activeAlerts = enrichedAlerts.filter(isActive);
@@ -127,37 +144,70 @@ export function VentasDashboardPage() {
         </Link>
       </div>
 
-      <Card>
-        <CardContent className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">Proximos seguimientos</h2>
-            <p className="text-sm text-slate-500">Ordenados por fecha, con vencidos o de hoy arriba.</p>
-          </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardContent className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950">Proximos seguimientos</h2>
+              <p className="text-sm text-slate-500">Ordenados por fecha, con vencidos o de hoy arriba.</p>
+            </div>
 
-          {sortedAlerts.length ? (
-            <div className="space-y-3">
-              {sortedAlerts.slice(0, 8).map((alert) => (
-                <div key={alert.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-slate-950">{alert.clientName || "Sin cliente"}</p>
-                      {isDue(alert) ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Vencida / hoy</Badge> : null}
+            {sortedAlerts.length ? (
+              <div className="space-y-3">
+                {sortedAlerts.slice(0, 8).map((alert) => (
+                  <div key={alert.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-950">{alert.clientName || "Sin cliente"}</p>
+                        {isDue(alert) ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Vencida / hoy</Badge> : null}
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {alertTypeLabel(alert.alertType)} · {alert.vehicleBrand || "Auto"} {alert.vehicleModel || ""} {alert.vehicleLicensePlate ? `· ${alert.vehicleLicensePlate}` : ""}
+                      </p>
                     </div>
-                    <p className="text-sm text-slate-500">
-                      {alertTypeLabel(alert.alertType)} · {alert.vehicleBrand || "Auto"} {alert.vehicleModel || ""} {alert.vehicleLicensePlate ? `· ${alert.vehicleLicensePlate}` : ""}
-                    </p>
+                    <p className="text-sm font-semibold text-slate-900">{formatDate(alert.alertDate)}</p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-900">{formatDate(alert.alertDate)}</p>
-                </div>
-              ))}
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                No hay seguimientos pendientes.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950">Ultimos movimientos</h2>
+              <p className="text-sm text-slate-500">Que paso con los autos, sin tener que entrar uno por uno.</p>
             </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-              No hay seguimientos pendientes.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {events.length ? (
+              <div className="space-y-3">
+                {events.map((event) => (
+                  <Link
+                    key={event.id}
+                    to={`/autos/${event.vehicleId}`}
+                    className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:shadow-sm"
+                  >
+                    <p className="font-medium text-slate-900">{event.summary}</p>
+                    <p className="text-sm text-slate-500">
+                      {vehicleLabels.get(event.vehicleId) ?? "Vehiculo"}
+                    </p>
+                    <p className="text-xs text-slate-400">{formatDateTime(event.occurredAt)}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                Todavia no hay movimientos registrados.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -17,27 +17,39 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
+import {
+  isArchivedLeadStatus,
+  LEAD_STATUS_LABELS,
+  leadStatusLabel,
+  leadStatusTone,
+  parseLeadStatus,
+  REQUEST_STATUS_LABELS,
+} from "@/lib/leadStatus";
 import { cn } from "@/lib/utils";
 
-const ARCHIVED = ["🤝 Cerrado", "🚫 No interesado"];
-const CONTACTED_STATUS = "💬 Contactado";
-const RECONTACT_STATUS = "📞 Recontactar";
-const NO_ANSWER_STATUS = "❌ No contesta";
+const CONTACTED_STATUS = LEAD_STATUS_LABELS.contactado;
+const RECONTACT_STATUS = LEAD_STATUS_LABELS.recontactar;
+const NO_ANSWER_STATUS = LEAD_STATUS_LABELS.no_contesta;
 
 const MOVE_TO_REQUEST_STATUS = "Encargos";
 
 const STATUS_OPTIONS = [
-  "⏳ Sin contactar",
-  "✅ Interesado",
+  LEAD_STATUS_LABELS.sin_contactar,
+  LEAD_STATUS_LABELS.interesado,
   CONTACTED_STATUS,
   RECONTACT_STATUS,
   NO_ANSWER_STATUS,
   MOVE_TO_REQUEST_STATUS,
-  "🚫 No interesado",
-  "🤝 Cerrado",
+  LEAD_STATUS_LABELS.no_interesado,
+  LEAD_STATUS_LABELS.cerrado,
 ];
 
-const REQUEST_STATUS_OPTIONS = ["🔎 Buscando", "✅ Encontrado", "⏸️ En pausa", "🚫 Cancelado"];
+const REQUEST_STATUS_OPTIONS = [
+  REQUEST_STATUS_LABELS.buscando,
+  REQUEST_STATUS_LABELS.encontrado,
+  REQUEST_STATUS_LABELS.en_pausa,
+  REQUEST_STATUS_LABELS.cancelado,
+];
 
 type LeadTab = "activos" | "archivados" | "encargos";
 type LeadSource = "lead" | "encargo";
@@ -76,20 +88,19 @@ type LeadForm = {
   fechaContacto: string;
 };
 
-function normalizeStatus(status: string) {
-  if (status.includes("Contactado")) return CONTACTED_STATUS;
-  return status;
-}
-
 function isCustomerRequest(lead: Pick<Lead, "source" | "raw">) {
   return lead.source === "encargo" || lead.raw.tipo === "encargo";
+}
+
+function isArchivedLead(lead: Lead) {
+  return !isCustomerRequest(lead) && isArchivedLeadStatus(parseLeadStatus(lead.estado));
 }
 
 const emptyForm = (source: LeadSource = "lead"): LeadForm => ({
   nombre: "",
   auto: "",
   telefono: "",
-  estado: source === "encargo" ? "🔎 Buscando" : "⏳ Sin contactar",
+  estado: source === "encargo" ? REQUEST_STATUS_LABELS.buscando : LEAD_STATUS_LABELS.sin_contactar,
   notas: "",
   fechaLead: new Date().toISOString().slice(0, 10),
   fechaContacto: "",
@@ -97,6 +108,9 @@ const emptyForm = (source: LeadSource = "lead"): LeadForm => ({
 
 function normalizeLead(row: LeadRow): Lead {
   const raw = row.raw_json && typeof row.raw_json === "object" ? row.raw_json : {};
+  // Los encargos tienen su propia lista de estados: se dejan tal cual vinieron.
+  const isRequest = row.source === "encargo" || raw.tipo === "encargo";
+  const rawStatus = row.status || LEAD_STATUS_LABELS.sin_contactar;
 
   return {
     id: row.lead_key,
@@ -105,7 +119,7 @@ function normalizeLead(row: LeadRow): Lead {
     nombre: row.buyer_name || "",
     auto: row.item_title || "",
     telefono: row.phone || "",
-    estado: normalizeStatus(row.status || "⏳ Sin contactar"),
+    estado: isRequest ? rawStatus : leadStatusLabel(parseLeadStatus(rawStatus)),
     notas: String(raw.notas || ""),
     fechaLead: row.date_created || "",
     fechaContacto: String(raw.fecha_contacto || ""),
@@ -136,7 +150,7 @@ function daysSince(value: string) {
 }
 
 function noAnswerDays(lead: Lead) {
-  if (!lead.estado.includes("No contesta")) return null;
+  if (isCustomerRequest(lead) || parseLeadStatus(lead.estado) !== "no_contesta") return null;
   return daysSince(lead.fechaContacto || lead.fechaLead);
 }
 
@@ -145,8 +159,48 @@ function shouldRecontactNoAnswer(lead: Lead) {
   return days !== null && days >= 3;
 }
 
+/** Un lead sigue "pendiente" mientras nadie lo toco. Los encargos no entran en este conteo. */
+function esPendienteSinContactar(lead: Lead) {
+  return !isCustomerRequest(lead) && parseLeadStatus(lead.estado) === "sin_contactar";
+}
+
+/** Mas de 3 dias sin que nadie lo contacte por primera vez. */
+function esLeadVencido(lead: Lead) {
+  if (!esPendienteSinContactar(lead)) return false;
+  const dias = daysSince(lead.fechaLead);
+  return dias !== null && dias > 3;
+}
+
+/**
+ * Urgencia visual del lead: o esta vencido sin contactar, o quedo sin respuesta
+ * tras un intento de contacto. Una vez que hubo alguna gestion (contactado,
+ * interesado, etc.) deja de estar "urgente" por antiguedad.
+ */
+function esLeadUrgente(lead: Lead) {
+  return esLeadVencido(lead) || shouldRecontactNoAnswer(lead);
+}
+
 function visibleStatus(lead: Lead) {
-  return shouldRecontactNoAnswer(lead) ? RECONTACT_STATUS : normalizeStatus(lead.estado);
+  // lead.estado ya viene canonizado desde normalizeLead, salvo en encargos.
+  return shouldRecontactNoAnswer(lead) ? RECONTACT_STATUS : lead.estado;
+}
+
+function claseAntiguedad(dias: number) {
+  if (dias <= 0) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (dias <= 3) return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-red-500 bg-red-500 text-white";
+}
+
+/**
+ * Color del contador de dias junto a la fecha del lead. Solo alarma (escala
+ * verde/amarillo/rojo) mientras el lead sigue sin contactar o es un encargo;
+ * una vez gestionado (contactado, interesado, recontactar, etc.) el contador
+ * pasa a gris porque los dias desde la carga ya no significan nada.
+ */
+function claseBadgeDias(lead: Lead, dias: number | null) {
+  if (dias === null) return "border-slate-200 text-slate-400";
+  if (isCustomerRequest(lead) || esPendienteSinContactar(lead)) return claseAntiguedad(dias);
+  return "border-slate-200 text-slate-400";
 }
 
 function whatsappLink(phone: string) {
@@ -166,23 +220,21 @@ function leadToForm(lead: Lead): LeadForm {
   };
 }
 
+/** Los estados de encargo no pasan por el parser de leads, asi que se resuelven aparte. */
+const requestStatusTones: Record<string, string> = {
+  [REQUEST_STATUS_LABELS.buscando]: "border-violet-200 bg-violet-50 text-violet-700",
+  [REQUEST_STATUS_LABELS.encontrado]: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  [REQUEST_STATUS_LABELS.en_pausa]: "border-amber-200 bg-amber-50 text-amber-700",
+  [REQUEST_STATUS_LABELS.cancelado]: "border-slate-200 bg-slate-100 text-slate-500",
+  [MOVE_TO_REQUEST_STATUS]: "border-violet-200 bg-violet-50 text-violet-700",
+};
+
 function statusClasses(status: string) {
-  if (status.includes("Buscando")) return "border-violet-200 bg-violet-50 text-violet-700";
-  if (status.includes("Encontrado")) return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (status.includes("En pausa")) return "border-amber-200 bg-amber-50 text-amber-700";
-  if (status.includes("Cancelado")) return "border-slate-200 bg-slate-100 text-slate-500";
-  if (status.includes("Interesado")) return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (status.includes("Contactado")) return "border-sky-200 bg-sky-50 text-sky-700";
-  if (status.includes("Recontactar")) return "border-amber-200 bg-amber-50 text-amber-700";
-  if (status.includes("No contesta")) return "border-red-200 bg-red-50 text-red-700";
-  if (status.includes("Encargos")) return "border-violet-200 bg-violet-50 text-violet-700";
-  if (status.includes("No interesado")) return "border-slate-200 bg-slate-100 text-slate-500";
-  if (status.includes("Cerrado")) return "border-blue-200 bg-blue-50 text-blue-700";
-  return "border-slate-200 bg-white text-slate-700";
+  return requestStatusTones[status] ?? leadStatusTone(parseLeadStatus(status));
 }
 
 function visibleStatusClasses(lead: Lead) {
-  if (shouldRecontactNoAnswer(lead)) return "border-red-300 bg-red-50 text-red-700 ring-2 ring-red-100";
+  if (esLeadUrgente(lead)) return "border-red-600 bg-red-500 text-white ring-2 ring-red-300 font-bold";
   return statusClasses(visibleStatus(lead));
 }
 
@@ -239,17 +291,17 @@ export function LeadsPage() {
 
   const stats = useMemo(() => {
     const regularLeads = leads.filter((lead) => !isCustomerRequest(lead));
-    const activos = regularLeads.filter((lead) => !ARCHIVED.includes(lead.estado));
+    const activos = regularLeads.filter((lead) => !isArchivedLead(lead));
     const count = (status: string) => activos.filter((lead) => visibleStatus(lead) === status).length;
 
     return {
       activos: activos.length,
-      sin: count("⏳ Sin contactar"),
-      interesados: count("✅ Interesado"),
+      sin: count(LEAD_STATUS_LABELS.sin_contactar),
+      interesados: count(LEAD_STATUS_LABELS.interesado),
       contactados: count(CONTACTED_STATUS),
       recontactar: count(RECONTACT_STATUS),
-      cerrados: regularLeads.filter((lead) => lead.estado === "🤝 Cerrado").length,
-      archivados: regularLeads.filter((lead) => ARCHIVED.includes(lead.estado)).length,
+      cerrados: regularLeads.filter((lead) => parseLeadStatus(lead.estado) === "cerrado").length,
+      archivados: regularLeads.filter((lead) => isArchivedLead(lead)).length,
       encargos: leads.filter((lead) => isCustomerRequest(lead)).length,
     };
   }, [leads]);
@@ -263,7 +315,7 @@ export function LeadsPage() {
         if (tab === "encargos" && !isRequest) return false;
         if (tab !== "encargos" && isRequest) return false;
 
-        const isArchived = ARCHIVED.includes(lead.estado);
+        const isArchived = isArchivedLead(lead);
         if (tab === "activos" && isArchived) return false;
         if (tab === "archivados" && !isArchived) return false;
 
@@ -282,7 +334,7 @@ export function LeadsPage() {
           (contactFilter === "vencidos" && !hasContactDate && leadDays !== null && leadDays > 3);
         const matchesDateFrom = !dateFrom || (leadInputDate && leadInputDate >= dateFrom);
         const matchesDateTo = !dateTo || (leadInputDate && leadInputDate <= dateTo);
-        const leadStatus = isRequest ? normalizeStatus(lead.estado) : visibleStatus(lead);
+        const leadStatus = visibleStatus(lead);
 
         return (
           matchesQuery &&
@@ -293,8 +345,8 @@ export function LeadsPage() {
         );
       })
       .sort((a, b) => {
-        const aUrgent = !isCustomerRequest(a) && shouldRecontactNoAnswer(a);
-        const bUrgent = !isCustomerRequest(b) && shouldRecontactNoAnswer(b);
+        const aUrgent = esLeadUrgente(a);
+        const bUrgent = esLeadUrgente(b);
         if (aUrgent !== bUrgent) return aUrgent ? -1 : 1;
 
         const da = a.fechaLead ? new Date(a.fechaLead).getTime() : Number.NaN;
@@ -876,7 +928,7 @@ function LeadTableRow({
   statusOptions: string[];
 }) {
   const days = daysSince(lead.fechaLead);
-  const urgentRecontact = shouldRecontactNoAnswer(lead);
+  const urgente = esLeadUrgente(lead);
   const currentStatus = visibleStatus(lead);
   const wa = whatsappLink(lead.telefono);
   const [notesDraft, setNotesDraft] = useState(lead.notas);
@@ -886,7 +938,7 @@ function LeadTableRow({
   }, [lead.notas]);
 
   return (
-    <tr className={cn("align-top transition", urgentRecontact ? "bg-red-50/40 hover:bg-red-50" : "hover:bg-slate-50")}>
+    <tr className={cn("align-top transition", urgente ? "bg-red-100 hover:bg-red-200/70" : "hover:bg-slate-50")}>
       <td className="px-2 py-3 font-mono text-xs text-slate-400">{index}</td>
       <td className="px-2 py-3">
         <div className="break-words font-semibold leading-tight text-slate-950">{lead.nombre || "-"}</div>
@@ -932,10 +984,7 @@ function LeadTableRow({
         <div
           className={cn(
             "mt-1 inline-flex rounded-md border px-2 py-0.5 text-xs font-bold",
-            days === null && "border-slate-200 text-slate-400",
-            days !== null && days <= 0 && "border-emerald-200 bg-emerald-50 text-emerald-700",
-            days !== null && days > 0 && days <= 3 && "border-amber-200 bg-amber-50 text-amber-700",
-            days !== null && days > 3 && "border-red-200 bg-red-50 text-red-700",
+            claseBadgeDias(lead, days),
           )}
         >
           {days === null ? "-" : days <= 0 ? "hoy" : `${days}d`}
@@ -990,7 +1039,7 @@ function LeadCompactCard({
   statusOptions: string[];
 }) {
   const days = daysSince(lead.fechaLead);
-  const urgentRecontact = shouldRecontactNoAnswer(lead);
+  const urgente = esLeadUrgente(lead);
   const currentStatus = visibleStatus(lead);
   const wa = whatsappLink(lead.telefono);
   const [notesDraft, setNotesDraft] = useState(lead.notas);
@@ -1003,7 +1052,7 @@ function LeadCompactCard({
     <div
       className={cn(
         "grid gap-3 rounded-xl border bg-white p-4 shadow-sm",
-        urgentRecontact ? "border-red-200 bg-red-50/40" : "border-slate-200",
+        urgente ? "border-red-500 bg-red-100" : "border-slate-200",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -1023,10 +1072,7 @@ function LeadCompactCard({
           <div
             className={cn(
               "mt-1 inline-flex rounded-md border px-2 py-0.5 font-bold",
-              days === null && "border-slate-200 text-slate-400",
-              days !== null && days <= 0 && "border-emerald-200 bg-emerald-50 text-emerald-700",
-              days !== null && days > 0 && days <= 3 && "border-amber-200 bg-amber-50 text-amber-700",
-              days !== null && days > 3 && "border-red-200 bg-red-50 text-red-700",
+              claseBadgeDias(lead, days),
             )}
           >
             {days === null ? "-" : days <= 0 ? "hoy" : `${days}d`}

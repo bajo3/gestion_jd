@@ -1,4 +1,4 @@
-import { createVehicle, listVehicles, updateVehicle } from "@/services/vehiclesService";
+import { createVehicle, getVehicleById, listVehicles, updateVehicle } from "@/services/vehiclesService";
 import type { Vehicle, VehicleInput, VehicleStatus } from "@/types/vehicles";
 
 export type AssistantDraft = {
@@ -334,24 +334,79 @@ type GlmAssistantResponse = {
   error?: string;
 };
 
-function summarizeVehiclesForAi(vehicles: Vehicle[]) {
-  return vehicles
-    .filter((vehicle) => vehicle.status !== "archivado")
-    .slice(0, 80)
-    .map((vehicle) => ({
-      id: vehicle.id,
-      brand: vehicle.brand,
-      model: vehicle.model,
-      year: vehicle.year,
-      licensePlate: vehicle.licensePlate,
-      status: vehicle.status,
-      buyerName: vehicle.buyerName,
-    }));
+const MAX_VEHICLES_FOR_AI = 8;
+
+/**
+ * Formato compacto `id|marca modelo anio|patente|estado`. Una linea por auto en vez de
+ * un objeto JSON cuesta alrededor de un tercio de los tokens.
+ */
+function compactVehicle(vehicle: Vehicle) {
+  const description = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(" ");
+  return `${vehicle.id}|${description}|${vehicle.licensePlate || "-"}|${vehicle.status}`;
+}
+
+/**
+ * Solo se mandan al modelo los autos que pueden ser el objetivo del mensaje.
+ * Antes viajaba el catalogo entero (hasta 80 unidades) en cada consulta.
+ */
+function selectVehiclesForAi(vehicles: Vehicle[], values: Partial<VehicleInput>) {
+  const active = vehicles.filter((vehicle) => vehicle.status !== "archivado");
+  const relevant = findCandidates(active, values);
+
+  if (relevant.length) {
+    return relevant.slice(0, MAX_VEHICLES_FOR_AI).map(compactVehicle);
+  }
+
+  // Sin pistas locales: alcanza con las ultimas unidades cargadas para desambiguar.
+  return active.slice(0, MAX_VEHICLES_FOR_AI).map(compactVehicle);
+}
+
+/**
+ * Cuando el parser local ya identifico un unico auto por patente y ademas extrajo
+ * algun dato accionable, la llamada al modelo no aporta nada: se saltea entera.
+ */
+function isLocalParseConfident(values: Partial<VehicleInput>, candidates: Vehicle[]) {
+  if (!values.licensePlate || candidates.length !== 1) return false;
+
+  const actionableFields: (keyof VehicleInput)[] = [
+    "status",
+    "salePrice",
+    "purchasePrice",
+    "buyerName",
+    "buyerPhone",
+    "kilometers",
+    "exitDate",
+    "hasCredit",
+  ];
+
+  return actionableFields.some((field) => {
+    const value = values[field];
+    return value !== undefined && value !== null && value !== "" && value !== false;
+  });
+}
+
+const VEHICLES_CACHE_TTL_MS = 60_000;
+let vehiclesCache: { vehicles: Vehicle[]; fetchedAt: number } | null = null;
+
+/** Evita refetchear todo el catalogo en cada mensaje de una misma conversacion. */
+async function getVehiclesCached() {
+  if (vehiclesCache && Date.now() - vehiclesCache.fetchedAt < VEHICLES_CACHE_TTL_MS) {
+    return vehiclesCache.vehicles;
+  }
+
+  const vehicles = await listVehicles();
+  vehiclesCache = { vehicles, fetchedAt: Date.now() };
+  return vehicles;
+}
+
+export function invalidateAssistantVehiclesCache() {
+  vehiclesCache = null;
 }
 
 async function parseWithGlm(
   text: string,
   vehicles: Vehicle[],
+  localValues: Partial<VehicleInput>,
   currentDraft?: AssistantDraft,
 ): Promise<GlmAssistantResponse | null> {
   try {
@@ -365,7 +420,7 @@ async function parseWithGlm(
         currentDate: todayDate(),
         currentValues: currentDraft?.values ?? {},
         currentTargetVehicleId: currentDraft?.targetVehicleId ?? "",
-        vehicles: summarizeVehiclesForAi(vehicles),
+        vehicles: selectVehiclesForAi(vehicles, localValues),
       }),
     });
 
@@ -378,9 +433,15 @@ async function parseWithGlm(
 }
 
 export async function buildAssistantDraft(text: string, currentDraft?: AssistantDraft): Promise<AssistantDraft> {
-  const vehicles = await listVehicles();
+  const vehicles = await getVehiclesCached();
   const localParsed = parsePatch(text);
-  const glmParsed = await parseWithGlm(text, vehicles, currentDraft);
+
+  // Si lo local ya alcanza, no se gasta ni un token: se resuelve en el navegador.
+  const localValues = { ...(currentDraft?.values ?? {}), ...localParsed.values };
+  const localCandidates = findCandidates(vehicles, localValues);
+  const skipGlm = isLocalParseConfident(localValues, localCandidates);
+
+  const glmParsed = skipGlm ? null : await parseWithGlm(text, vehicles, localValues, currentDraft);
   const baseValues = currentDraft?.values ?? {};
   const values = { ...baseValues, ...localParsed.values, ...(glmParsed?.values ?? {}) };
   const requestedTargetId = glmParsed?.targetVehicleId || currentDraft?.targetVehicleId;
@@ -390,10 +451,13 @@ export async function buildAssistantDraft(text: string, currentDraft?: Assistant
   const candidates = explicitTarget ? [explicitTarget] : findCandidates(vehicles, values);
   const target = candidates.length === 1 ? candidates[0] : undefined;
   const aiNotes = glmParsed?.assistantText ? [glmParsed.assistantText] : [];
+  const fallbackNote = skipGlm
+    ? "Resuelto sin IA: la patente identifica el auto y los datos ya estaban claros."
+    : "GLM no disponible; use interpretacion local.";
   const notes = [
     ...(currentDraft?.notes ?? []),
     ...localParsed.notes,
-    ...(glmParsed ? ["Interpretado con GLM 5.2.", ...aiNotes, ...(glmParsed.notes ?? [])] : ["GLM no disponible; use interpretacion local."]),
+    ...(glmParsed ? ["Interpretado con GLM 5.2.", ...aiNotes, ...(glmParsed.notes ?? [])] : [fallbackNote]),
   ];
 
   return {
@@ -460,13 +524,14 @@ export async function applyAssistantDraft(draft: AssistantDraft): Promise<Assist
   const values = { ...emptyVehicleInput(), ...draft.values };
 
   if (draft.targetVehicleId) {
-    const currentVehicles = await listVehicles();
-    const current = currentVehicles.find((vehicle) => vehicle.id === draft.targetVehicleId);
+    const current = await getVehicleById(draft.targetVehicleId);
     const mergedValues = current ? { ...vehicleToInput(current), ...draft.values } : values;
     const updated = await updateVehicle(draft.targetVehicleId, mergedValues);
+    invalidateAssistantVehiclesCache();
     return { vehicle: updated, mode: "update" };
   }
 
   const created = await createVehicle(values);
+  invalidateAssistantVehiclesCache();
   return { vehicle: created, mode: "create" };
 }

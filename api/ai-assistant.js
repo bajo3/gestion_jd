@@ -105,37 +105,20 @@ export async function parseAssistantWithGlm(payload) {
 
   const baseUrl = process.env.ZAI_BASE_URL || DEFAULT_BASE_URL;
   const model = process.env.ZAI_MODEL || DEFAULT_MODEL;
-  const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles.slice(0, 80) : [];
+  // El cliente ya manda solo los candidatos relevantes; el tope es una red de seguridad.
+  const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles.slice(0, 12) : [];
   const currentValues = payload.currentValues && typeof payload.currentValues === "object" ? payload.currentValues : {};
   const currentDate = payload.currentDate || toDateOnly();
 
-  const system = `Sos un asistente para una agencia automotor argentina llamada Gestion JD.
-Tu tarea es convertir mensajes cortos de vendedores en datos estructurados de un vehiculo/venta.
-Responde solamente JSON valido, sin markdown.
+  const system = `Convertis mensajes de vendedores de una agencia automotor argentina en JSON. Solo JSON, sin markdown.
 
-Campos permitidos en values:
-brand, model, licensePlate, year, vin, engine, color, kilometers, entryDate, exitDate, status, observations, purchasePrice, salePrice, buyerName, buyerPhone, hasCredit, creditStartDate, creditTotalInstallments, creditDueDay.
+values acepta: brand, model, licensePlate, year, vin, engine, color, kilometers, entryDate, exitDate, status, observations, purchasePrice, salePrice, buyerName, buyerPhone, hasCredit, creditStartDate, creditTotalInstallments, creditDueDay.
+status: ingresado|en_preparacion|publicado|reservado|vendido|egresado|archivado.
 
-Estados validos:
-ingresado, en_preparacion, publicado, reservado, vendido, egresado, archivado.
+Reglas: vendido/vendida => status vendido; vendido/egresado/entregado sin fecha => exitDate = currentDate; "$17.800.000" => 17800000; "39.000km" => 39000; credito/financiado/cuotas => hasCredit true; no inventes datos faltantes.
+La lista vehicles viene como "id|marca modelo anio|patente|estado". Devolve targetVehicleId solo si identificas un unico auto sin ambiguedad.
 
-Reglas:
-- Si el mensaje dice vendido/vendida, status debe ser vendido.
-- Si dice vendido/egresado/entregado y no hay fecha explicita, usa currentDate como exitDate.
-- En Argentina, importes como "$17.800.000" son ARS 17800000.
-- "39.000km" significa 39000 kilometros.
-- Si menciona credito, financiado o cuotas, hasCredit debe ser true.
-- Si falta un dato, no lo inventes.
-- Si podes identificar un auto existente por patente o por coincidencia muy clara de marca/modelo/anio, devuelve targetVehicleId.
-- Si hay duda entre varios autos, no devuelvas targetVehicleId.
-
-Formato exacto:
-{
-  "values": { ...campos detectados },
-  "targetVehicleId": "id existente o string vacio",
-  "notes": ["suposiciones breves"],
-  "assistantText": "respuesta breve en castellano"
-}`;
+Salida: {"values":{},"targetVehicleId":"","notes":[],"assistantText":""}`;
 
   const user = JSON.stringify({
     currentDate,
