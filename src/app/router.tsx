@@ -20,6 +20,7 @@ import { VentasDashboardPage } from "@/pages/ventas/VentasDashboardPage";
 import { VentasDocumentosPage } from "@/pages/ventas/VentasDocumentosPage";
 import { VentasSeguimientosPage } from "@/pages/ventas/VentasSeguimientosPage";
 import { InfraccionesPage } from "@/pages/InfraccionesPage";
+import { PendientesPage } from "@/pages/PendientesPage";
 import { LeadsPage } from "@/pages/LeadsPage";
 
 function ProtectedLayout() {
@@ -49,6 +50,7 @@ export function Router() {
         <Route path="/ventas/documentos" element={<VentasDocumentosPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/infracciones" element={<InfraccionesPage />} />
+        <Route path="/pendientes" element={<PendientesPage />} />
         <Route path="/compra-venta" element={<CompraVentaPage />} />
         <Route path="/autorizacion-conduccion" element={<AutorizacionPage />} />
         <Route path="/datero" element={<DateroPage />} />
