@@ -1,5 +1,5 @@
 import type { CompraVentaFormValues } from "@/types/forms";
-import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 function legalUpper(value: string, fallback: string) {
   const normalized = value
@@ -193,5 +193,5 @@ export async function generateCompraVentaPdf(values: CompraVentaFormValues) {
   doc.text("Aclaracion: ____________________________", rightX, y);
 
   const fileName = sanitizeFileName(values.recibido || "sin_nombre", "sin_nombre");
-  doc.save(`boleto_${fileName}.pdf`);
+  return savePdf(doc, `boleto_${fileName}.pdf`);
 }

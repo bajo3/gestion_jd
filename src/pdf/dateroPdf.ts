@@ -1,5 +1,5 @@
 import type { DateroFormValues } from "@/types/forms";
-import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 export async function generateDateroPdf(values: DateroFormValues) {
   const doc = createPdf();
@@ -134,5 +134,5 @@ export async function generateDateroPdf(values: DateroFormValues) {
   doc.text("Generado por Jesus Diaz Automotores", 105, 285, { align: "center" });
   doc.setTextColor(0);
 
-  doc.save(`datero_${sanitizeFileName(values.nombre || "sin_nombre")}.pdf`);
+  return savePdf(doc, `datero_${sanitizeFileName(values.nombre || "sin_nombre")}.pdf`);
 }

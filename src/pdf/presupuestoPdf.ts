@@ -1,6 +1,6 @@
 import type { PresupuestoFormValues } from "@/types/forms";
 import { parseNumberish } from "@/lib/utils";
-import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 function parseMoney(v: string) {
   return Math.max(0, Math.round(parseNumberish(v)));
@@ -156,5 +156,5 @@ export async function generatePresupuestoPdf(values: PresupuestoFormValues) {
   doc.text("TOTAL OPERACION:", margin + 4, y);
   doc.text(formatMoney(totalOperacion, values.moneda), pageW - margin - 4, y, { align: "right" });
 
-  doc.save(`presupuesto_${sanitizeFileName(values.nombre || "cliente")}_${values.fecha.replaceAll("-", "")}.pdf`);
+  return savePdf(doc, `presupuesto_${sanitizeFileName(values.nombre || "cliente")}_${values.fecha.replaceAll("-", "")}.pdf`);
 }

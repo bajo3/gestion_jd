@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +6,7 @@ import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generatePresupuestoPdf } from "@/pdf/presupuestoPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { PresupuestoFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
@@ -132,7 +132,11 @@ export function PresupuestoPage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={() => generatePresupuestoPdf(values)}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="presupuesto"
+          values={values}
+          onGenerate={() => generatePresupuestoPdf(values)}
+        />
       </div>
     </DocumentPage>
   );

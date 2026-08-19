@@ -1,4 +1,4 @@
-import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 function normalizeImageForPdf(image: HTMLImageElement) {
   const maxDimension = 1800;
@@ -132,5 +132,5 @@ export async function generateFormularioClientePdf(payload: {
     doc.addPage();
   }
 
-  doc.save(`formulario_cliente_${sanitizeFileName(payload.dni || "sin_dni")}.pdf`);
+  return savePdf(doc, `formulario_cliente_${sanitizeFileName(payload.dni || "sin_dni")}.pdf`);
 }

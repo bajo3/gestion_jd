@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +6,7 @@ import { FormField } from "@/components/shared/FormField";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { DateroFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
@@ -150,7 +150,11 @@ export function DateroPage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={() => generateDateroPdf(values)}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="datero"
+          values={values}
+          onGenerate={() => generateDateroPdf(values)}
+        />
       </div>
     </DocumentPage>
   );

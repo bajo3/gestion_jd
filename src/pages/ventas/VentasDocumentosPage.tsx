@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ClipboardList, FileText, Gauge, Receipt, ShieldCheck, Users, WalletCards } from "lucide-react";
+import { ClipboardList, FileText, Gauge, Receipt, Search, ShieldCheck, Users, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 
@@ -19,7 +19,15 @@ export function VentasDocumentosPage() {
       <PageHeader
         eyebrow="Ventas"
         title="Documentos"
-        description="Accesos rapidos a los documentos comerciales actuales."
+        description="Accesos rapidos a los documentos comerciales actuales. Cada documento generado queda guardado en Consultas."
+        actions={
+          <Link to="/consultas">
+            <Button variant="outline">
+              <Search className="mr-2 h-4 w-4" />
+              Buscar documentos
+            </Button>
+          </Link>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

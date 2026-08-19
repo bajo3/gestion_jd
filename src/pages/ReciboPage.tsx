@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +7,7 @@ import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { parseNumberish } from "@/lib/utils";
 import { amountToLetters, generateReciboPdf } from "@/pdf/reciboPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { commitReceiptNumber, getNextReceiptNumber } from "@/services/receiptCounterService";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { ReciboFormValues } from "@/types/forms";
@@ -130,14 +130,15 @@ export function ReciboPage() {
       </FormSection>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <Button
-          onClick={async () => {
-            await generateReciboPdf(values);
+        <GenerateDocumentButton
+          documentType="recibo"
+          values={values}
+          onGenerate={async () => {
+            const pdf = await generateReciboPdf(values);
             form.set("reciboNro", commitReceiptNumber());
+            return pdf;
           }}
-        >
-          Generar Resumen
-        </Button>
+        />
       </div>
     </DocumentPage>
   );

@@ -2,6 +2,7 @@ import { documentLabels, documentRoutes, type DocumentType } from "@/services/do
 import { listAssistantLeads, summarizeLeads } from "@/services/leadsService";
 import { listCommercialAlerts } from "@/services/commercialAlertsService";
 import { listVehicles } from "@/services/vehiclesService";
+import { listRecentDocuments, normalizePlate, searchDocuments } from "@/services/documentsService";
 import type { Vehicle } from "@/types/vehicles";
 
 export type WorkspaceAssistantAction = {
@@ -141,11 +142,211 @@ function localWorkspaceAnswer(message: string, context: Awaited<ReturnType<typeo
   return null;
 }
 
+const DOCUMENT_SEARCH_VERBS = [
+  "busca",
+  "buscar",
+  "busque",
+  "encontra",
+  "encontrar",
+  "consulta",
+  "consultar",
+  "pasame",
+  "traeme",
+  "mostrame",
+  "dame",
+  "tenes",
+  "tienes",
+  "existe",
+  "guardado",
+  "guardaste",
+  "archivo",
+];
+
+const DOCUMENT_SEARCH_NOUNS = [
+  "documento",
+  "documentos",
+  "consulta",
+  "consultas",
+  "boleto",
+  "recibo",
+  "datero",
+  "presupuesto",
+  "autorizacion",
+  "autorización",
+  "test drive",
+  "formulario",
+  "patente",
+  "dominio",
+  "pdf",
+];
+
+const PLATE_PATTERN = /\b([a-z]{2}\s?\d{3}\s?[a-z]{2}|[a-z]{3}\s?\d{3})\b/i;
+
+const DOCUMENT_TYPE_KEYWORDS: Array<[DocumentType, string[]]> = [
+  ["compraVenta", ["boleto", "compra venta", "compra-venta"]],
+  ["autorizacion", ["autorizacion", "autorización"]],
+  ["datero", ["datero"]],
+  ["recibo", ["recibo"]],
+  ["presupuesto", ["presupuesto"]],
+  ["testDrive", ["test drive"]],
+  ["formularioCliente", ["formulario cliente"]],
+];
+
+function stripAccents(value: string) {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+export function isDocumentSearchQuestion(message: string) {
+  const normalized = stripAccents(message);
+  const hasVerb = DOCUMENT_SEARCH_VERBS.some((keyword) => normalized.includes(keyword));
+  const hasNoun = DOCUMENT_SEARCH_NOUNS.some((keyword) => normalized.includes(stripAccents(keyword)));
+
+  return hasVerb && hasNoun;
+}
+
+/**
+ * Saca de la frase las palabras de comando (y sus conjugaciones) para quedarse
+ * con la patente o el nombre que hay que buscar.
+ */
+const QUERY_STOP_STEMS = [
+  "busca",
+  "busque",
+  "buscar",
+  "encontra",
+  "encontrar",
+  "consulta",
+  "consultar",
+  "pasame",
+  "traeme",
+  "mostra",
+  "dame",
+  "tene",
+  "tiene",
+  "existe",
+  "guarda",
+  "archivo",
+  "document",
+  "boleto",
+  "recibo",
+  "datero",
+  "presupuesto",
+  "autorizacion",
+  "test",
+  "drive",
+  "formulario",
+  "patente",
+  "dominio",
+  "pdf",
+  "auto",
+  "cliente",
+  "senor",
+  "todos",
+  "algun",
+];
+
+const QUERY_STOP_WORDS = new Set([
+  "de",
+  "del",
+  "la",
+  "el",
+  "los",
+  "las",
+  "un",
+  "una",
+  "por",
+  "para",
+  "con",
+  "que",
+  "me",
+  "y",
+  "a",
+  "en",
+  "hay",
+  "sr",
+  "todo",
+  "sobre",
+]);
+
+function extractDocumentQuery(message: string) {
+  const plate = message.match(PLATE_PATTERN);
+  if (plate) return normalizePlate(plate[0]).toUpperCase();
+
+  return stripAccents(message)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(
+      (word) =>
+        word.length > 1 &&
+        !QUERY_STOP_WORDS.has(word) &&
+        !QUERY_STOP_STEMS.some((stem) => word.startsWith(stem)),
+    )
+    .slice(0, 4)
+    .join(" ")
+    .trim();
+}
+
+function extractDocumentType(message: string): DocumentType | "todos" {
+  const normalized = stripAccents(message);
+  const match = DOCUMENT_TYPE_KEYWORDS.find(([, keywords]) =>
+    keywords.some((keyword) => normalized.includes(stripAccents(keyword))),
+  );
+
+  return match ? match[0] : "todos";
+}
+
+/**
+ * Responde las busquedas de documentos guardados sin pasar por el modelo:
+ * los datos estan en la base y la respuesta tiene que ser exacta.
+ */
+export async function answerDocumentSearch(message: string): Promise<WorkspaceAssistantAction | null> {
+  const query = extractDocumentQuery(message);
+  const documentType = extractDocumentType(message);
+
+  if (!query && documentType === "todos") return null;
+
+  const { documents } = await searchDocuments({ query, documentType, limit: 12 });
+  const searchPath = `/consultas${query ? `?q=${encodeURIComponent(query)}` : ""}`;
+  const target = query || documentLabels[documentType as DocumentType];
+
+  if (!documents.length) {
+    return {
+      ok: true,
+      reply: `No encontre documentos guardados para "${target}". Proba con la patente sin espacios, el apellido o el DNI.`,
+      actionType: "navigate",
+      path: searchPath,
+      title: "Abrir Consultas",
+    };
+  }
+
+  const lines = documents.slice(0, 6).map((document, index) => {
+    const parts = [
+      document.documentLabel,
+      document.personName || "sin nombre",
+      document.licensePlate || "sin patente",
+      document.createdAt.slice(0, 10),
+    ];
+    return `${index + 1}. ${parts.join(" - ")}`;
+  });
+
+  return {
+    ok: true,
+    reply: [
+      `Encontre ${documents.length} documento${documents.length === 1 ? "" : "s"} para "${target}":`,
+      ...lines,
+      documents.length > 6 ? `Y ${documents.length - 6} mas en Consultas.` : "Los abris desde Consultas para descargar el PDF.",
+    ].join("\n"),
+    actionType: "navigate",
+    path: searchPath,
+    title: "Abrir Consultas",
+  };
+}
+
 async function buildWorkspaceContext() {
-  const [vehicles, leads, alerts] = await Promise.all([
+  const [vehicles, leads, alerts, recentDocuments] = await Promise.all([
     listVehicles(),
     listAssistantLeads(),
     listCommercialAlerts(),
+    listRecentDocuments(10),
   ]);
   const leadSummary = summarizeLeads(leads);
 
@@ -176,10 +377,21 @@ async function buildWorkspaceContext() {
       label: documentLabels[type as DocumentType],
       path,
     })),
+    savedDocuments: recentDocuments.map((document) => ({
+      label: document.documentLabel,
+      name: document.personName,
+      plate: document.licensePlate,
+      date: document.createdAt.slice(0, 10),
+    })),
   };
 }
 
 export async function askWorkspaceAssistant(message: string): Promise<WorkspaceAssistantAction> {
+  if (isDocumentSearchQuestion(message)) {
+    const documentAnswer = await answerDocumentSearch(message);
+    if (documentAnswer) return documentAnswer;
+  }
+
   const context = await buildWorkspaceContext();
   const local = localWorkspaceAnswer(message, context);
 
@@ -249,5 +461,12 @@ export function isWorkspaceQuestion(message: string) {
     "cómo me ayudas",
     "abrir",
     "ir a",
+    "consulta",
+    "consultas",
+    "buscar",
+    "busca",
+    "patente",
+    "dominio",
+    "guardado",
   ].some((keyword) => normalized.includes(keyword));
 }

@@ -18,6 +18,7 @@ const routeMap = {
   seguimientos: "/ventas/seguimientos",
   documentos: "/ventas/documentos",
   leads: "/leads",
+  consultas: "/consultas",
   infracciones: "/infracciones",
   compraVenta: "/compra-venta",
   autorizacion: "/autorizacion-conduccion",
@@ -101,6 +102,7 @@ Secciones disponibles:
 - seguimientos: /ventas/seguimientos
 - documentos: /ventas/documentos
 - leads: /leads
+- consultas: /consultas (documentos generados y guardados, se buscan por patente o nombre)
 - infracciones: /infracciones
 - compraVenta: /compra-venta
 - autorizacion: /autorizacion-conduccion
@@ -128,6 +130,7 @@ Acciones:
 Reglas:
 - Para "que lead falta contestar", usa context.leads.urgent y responde con los mas importantes.
 - Para "resumen del mes", resume autos vendidos, ingresos, leads, alertas y documentos segun contexto.
+- Para buscar un documento ya generado (por patente, nombre o DNI), usa actionType navigate con routeKey consultas y path /consultas?q=TEXTO. En context.savedDocuments tenes los ultimos guardados; no inventes documentos que no esten ahi.
 - Para "me haces un boleto compra venta", usa actionType documentDraft, documentType compraVenta, path /compra-venta.
 - No inventes datos faltantes: ponelos en missing.
 - Nunca digas que ya generaste PDF; deci que dejaste el borrador listo para revisar y generar.

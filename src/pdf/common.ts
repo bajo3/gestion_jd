@@ -34,6 +34,25 @@ export function sanitizeFileName(value: string, fallback = "documento") {
   return normalized || fallback;
 }
 
+export type GeneratedPdf = {
+  fileName: string;
+  blob: Blob | null;
+};
+
+/**
+ * Descarga el PDF y devuelve el mismo archivo como blob para poder
+ * archivarlo en la base de datos.
+ */
+export function savePdf(doc: jsPDF, fileName: string): GeneratedPdf {
+  doc.save(fileName);
+
+  try {
+    return { fileName, blob: doc.output("blob") as Blob };
+  } catch {
+    return { fileName, blob: null };
+  }
+}
+
 export function drawPdfLogo(doc: jsPDF, logo: string | null, x: number, y: number, width = 42) {
   if (!logo) return 0;
 

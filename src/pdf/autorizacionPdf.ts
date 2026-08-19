@@ -1,5 +1,5 @@
 import type { AutorizacionFormValues } from "@/types/forms";
-import { createPdf, drawPdfLogo, loadImageDataUrl } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, savePdf } from "./common";
 
 export async function generateAutorizacionPdf(values: AutorizacionFormValues) {
   const doc = createPdf();
@@ -103,5 +103,5 @@ export async function generateAutorizacionPdf(values: AutorizacionFormValues) {
     4.5,
   );
 
-  doc.save("autorizacion_para_circular.pdf");
+  return savePdf(doc, "autorizacion_para_circular.pdf");
 }

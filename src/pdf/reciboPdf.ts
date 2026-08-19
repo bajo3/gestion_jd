@@ -1,6 +1,6 @@
 import type { ReciboFormValues } from "@/types/forms";
 import { parseNumberish } from "@/lib/utils";
-import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 function toSpanish(n: number): string {
   const u = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciseis", "diecisiete", "dieciocho", "diecinueve"];
@@ -159,5 +159,5 @@ export async function generateReciboPdf(values: ReciboFormValues) {
     await drawReceiptBlock(20, false);
   }
 
-  doc.save(`recibo_${values.reciboNro}_${sanitizeFileName(values.cliente || "sin_nombre")}.pdf`);
+  return savePdf(doc, `recibo_${values.reciboNro}_${sanitizeFileName(values.cliente || "sin_nombre")}.pdf`);
 }

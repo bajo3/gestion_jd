@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -96,8 +96,14 @@ export function FormularioClientePage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button
-          onClick={() =>
+        <GenerateDocumentButton
+          documentType="formularioCliente"
+          values={{
+            dni: values.dni,
+            cuil: values.cuil,
+            situacionLaboral: values.situacionLaboral,
+          }}
+          onGenerate={() =>
             generateFormularioClientePdf({
               dni: values.dni,
               cuil: values.cuil,
@@ -106,9 +112,7 @@ export function FormularioClientePage() {
               dniDorso: values.dniDorso,
             })
           }
-        >
-          Generar Resumen
-        </Button>
+        />
       </div>
     </DocumentPage>
   );

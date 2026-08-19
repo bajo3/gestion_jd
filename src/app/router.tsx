@@ -22,6 +22,7 @@ import { VentasSeguimientosPage } from "@/pages/ventas/VentasSeguimientosPage";
 import { InfraccionesPage } from "@/pages/InfraccionesPage";
 import { PendientesPage } from "@/pages/PendientesPage";
 import { LeadsPage } from "@/pages/LeadsPage";
+import { ConsultasPage } from "@/pages/ConsultasPage";
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -48,6 +49,7 @@ export function Router() {
         <Route path="/ventas" element={<VentasDashboardPage />} />
         <Route path="/ventas/seguimientos" element={<VentasSeguimientosPage />} />
         <Route path="/ventas/documentos" element={<VentasDocumentosPage />} />
+        <Route path="/consultas" element={<ConsultasPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/infracciones" element={<InfraccionesPage />} />
         <Route path="/pendientes" element={<PendientesPage />} />

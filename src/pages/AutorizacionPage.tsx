@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateAutorizacionPdf } from "@/pdf/autorizacionPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { AutorizacionFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
@@ -99,7 +99,11 @@ export function AutorizacionPage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={() => generateAutorizacionPdf(values)}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="autorizacion"
+          values={values}
+          onGenerate={() => generateAutorizacionPdf(values)}
+        />
       </div>
     </DocumentPage>
   );

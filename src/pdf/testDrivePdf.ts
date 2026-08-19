@@ -1,5 +1,5 @@
 import type { TestDriveFormValues } from "@/types/forms";
-import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 export async function generateTestDrivePdf(values: TestDriveFormValues) {
   const doc = createPdf();
@@ -219,5 +219,5 @@ export async function generateTestDrivePdf(values: TestDriveFormValues) {
   doc.setFontSize(8);
   doc.text("Pagina 2", 105, 285, { align: "center" });
 
-  doc.save(`test_drive_${sanitizeFileName(values.nombreConductor || "document")}.pdf`);
+  return savePdf(doc, `test_drive_${sanitizeFileName(values.nombreConductor || "document")}.pdf`);
 }

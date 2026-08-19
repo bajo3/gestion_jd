@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +6,7 @@ import { FormField } from "@/components/shared/FormField";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateCompraVentaPdf } from "@/pdf/compraVentaPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { CompraVentaFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
@@ -94,7 +94,11 @@ export function CompraVentaPage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={() => generateCompraVentaPdf(values)}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="compraVenta"
+          values={values}
+          onGenerate={() => generateCompraVentaPdf(values)}
+        />
       </div>
     </DocumentPage>
   );
