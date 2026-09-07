@@ -23,6 +23,8 @@ import { InfraccionesPage } from "@/pages/InfraccionesPage";
 import { PendientesPage } from "@/pages/PendientesPage";
 import { LeadsPage } from "@/pages/LeadsPage";
 import { ConsultasPage } from "@/pages/ConsultasPage";
+import { ListaPreciosPage } from "@/pages/precios/ListaPreciosPage";
+import { CatalogoPage } from "@/pages/catalogo/CatalogoPage";
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -36,6 +38,7 @@ function ProtectedLayout() {
 export function Router() {
   return (
     <Routes>
+      <Route path="/catalogo" element={<CatalogoPage />} />
       <Route
         path="/login"
         element={isAuthenticated() ? <Navigate to="/" replace /> : <LoginPage />}
@@ -50,6 +53,7 @@ export function Router() {
         <Route path="/ventas/seguimientos" element={<VentasSeguimientosPage />} />
         <Route path="/ventas/documentos" element={<VentasDocumentosPage />} />
         <Route path="/consultas" element={<ConsultasPage />} />
+        <Route path="/lista-precios" element={<ListaPreciosPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/infracciones" element={<InfraccionesPage />} />
         <Route path="/pendientes" element={<PendientesPage />} />
