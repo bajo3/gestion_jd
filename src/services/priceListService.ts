@@ -355,6 +355,17 @@ export async function pullSheetChanges(items: PriceListItem[]): Promise<SheetPul
 
   const rows = sheet.rows ?? [];
   const bySheetRow = new Map(items.filter((item) => item.sheetRow).map((item) => [item.sheetRow, item]));
+
+  // Sin ningun sheet_row no hay forma de saber que fila corresponde a que
+  // vehiculo, y cada fila de la planilla se leeria como un alta: la lista
+  // entera se duplicaria. Pasa si falta correr la migracion de sheet_row.
+  if (items.length && bySheetRow.size === 0) {
+    return {
+      ...EMPTY_PULL,
+      error: "Ningun vehiculo tiene asignada su fila de la planilla. Falta correr la migracion sheet_row.",
+    };
+  }
+
   const result: SheetPullResult = { imported: [], created: [], conflicts: [] };
 
   for (const [index, values] of rows.entries()) {
