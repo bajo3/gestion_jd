@@ -1,4 +1,28 @@
-import type { PriceCurrency, PriceListItem } from "@/types/priceList";
+import type { PriceCurrency, PriceListItem, PriceListItemInput } from "@/types/priceList";
+
+/** Reduce un item a su forma editable: lo que se manda a Supabase y a la planilla. */
+export function priceListItemToInput(item: PriceListItem): PriceListItemInput {
+  return {
+    brand: item.brand,
+    unit: item.unit,
+    yearLabel: item.yearLabel,
+    kmLabel: item.kmLabel,
+    version: item.version,
+    color: item.color,
+    fuel: item.fuel,
+    traction: item.traction,
+    gearbox: item.gearbox,
+    displacement: item.displacement,
+    cashPrice: item.cashPrice,
+    listPrice: item.listPrice,
+    currency: item.currency,
+    controlMark: item.controlMark,
+    photoUrl: item.photoUrl,
+    isPublic: item.isPublic,
+    sheetRow: item.sheetRow,
+    sortOrder: item.sortOrder,
+  };
+}
 
 /** Formatea un precio con el simbolo de su moneda: "$ 22.900.000" o "USD 31.400". */
 export function formatPrice(value: number | null, currency: PriceCurrency) {

@@ -20,6 +20,8 @@ export type PriceListItem = {
   controlMark: string;
   photoUrl: string;
   isPublic: boolean;
+  /** Fila que ocupa este vehiculo en la planilla de Google. null si nunca se escribio ahi. */
+  sheetRow: number | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -45,6 +47,7 @@ export function emptyPriceListItem(brand = ""): PriceListItemInput {
     controlMark: "",
     photoUrl: "",
     isPublic: true,
+    sheetRow: null,
     sortOrder: 0,
   };
 }

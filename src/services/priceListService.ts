@@ -1,6 +1,8 @@
+import { priceListItemToInput } from "@/lib/priceList";
 import { readStorage, writeStorage } from "@/lib/storage";
 import { generateId } from "@/lib/utils";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
+import { syncToSheet } from "@/services/sheetsSyncService";
 import type { PriceCurrency, PriceListItem, PriceListItemInput } from "@/types/priceList";
 
 const STORAGE_KEY = "gestion-jd-lista-precios";
@@ -26,6 +28,7 @@ type DbPriceListItem = {
   control_mark?: string | null;
   photo_url?: string | null;
   is_public?: boolean | null;
+  sheet_row?: number | null;
   sort_order?: number | null;
   created_at: string;
   updated_at: string;
@@ -60,6 +63,7 @@ function mapDbItem(item: DbPriceListItem): PriceListItem {
     controlMark: item.control_mark ?? "",
     photoUrl: item.photo_url ?? "",
     isPublic: item.is_public !== false,
+    sheetRow: toNumber(item.sheet_row),
     sortOrder: Number.isFinite(item.sort_order) ? Number(item.sort_order) : 0,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
@@ -85,6 +89,7 @@ function itemPayload(input: PriceListItemInput) {
     control_mark: input.controlMark.trim() || null,
     photo_url: input.photoUrl.trim() || null,
     is_public: input.isPublic,
+    sheet_row: input.sheetRow,
     sort_order: input.sortOrder,
   };
 }
@@ -136,6 +141,33 @@ export async function listPriceListItems({ onlyPublic = false } = {}) {
   return onlyPublic ? localItems.filter((item) => item.isPublic) : localItems;
 }
 
+/** Guarda en Supabase la fila que Google le asigno al vehiculo. */
+async function writeSheetRow(item: PriceListItem, sheetRow: number) {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from(PRICE_LIST_TABLE)
+      .update({ sheet_row: sheetRow })
+      .eq("id", item.id)
+      .eq("app_source", APP_SOURCE)
+      .select("*")
+      .single();
+
+    if (error || !data) return null;
+    return mapDbItem(data as DbPriceListItem);
+  } catch {
+    return null;
+  }
+}
+
+/** Un vehiculo que todavia no existe en la planilla se agrega al final. */
+async function appendMissingSheetRow(item: PriceListItem) {
+  const sheet = await syncToSheet({ action: "append", item: priceListItemToInput(item) });
+  if (sheet.ok && sheet.sheetRow) await writeSheetRow(item, sheet.sheetRow);
+  return sheet;
+}
+
 export async function createPriceListItem(input: PriceListItemInput) {
   if (isSupabaseConfigured && supabase) {
     try {
@@ -146,9 +178,16 @@ export async function createPriceListItem(input: PriceListItemInput) {
         .single();
 
       if (!error && data) {
-        const item = mapDbItem(data as DbPriceListItem);
+        let item = mapDbItem(data as DbPriceListItem);
+
+        // La planilla asigna la fila; recien ahi sabemos que sheetRow guardar.
+        const sheet = await syncToSheet({ action: "append", item: priceListItemToInput(item) });
+        if (sheet.ok && sheet.sheetRow) {
+          item = (await writeSheetRow(item, sheet.sheetRow)) ?? item;
+        }
+
         saveLocalItems([...readLocalItems(), item]);
-        return { item, persisted: true };
+        return { item, persisted: true, sheet };
       }
     } catch {
       // Cae al guardado local.
@@ -158,7 +197,7 @@ export async function createPriceListItem(input: PriceListItemInput) {
   const now = new Date().toISOString();
   const item: PriceListItem = { ...input, id: generateId(), createdAt: now, updatedAt: now };
   saveLocalItems([...readLocalItems(), item]);
-  return { item, persisted: false };
+  return { item, persisted: false, sheet: null };
 }
 
 export async function updatePriceListItem(id: string, input: PriceListItemInput) {
@@ -175,7 +214,12 @@ export async function updatePriceListItem(id: string, input: PriceListItemInput)
       if (!error && data) {
         const item = mapDbItem(data as DbPriceListItem);
         saveLocalItems(readLocalItems().map((current) => (current.id === id ? item : current)));
-        return { item, persisted: true };
+
+        const sheet = item.sheetRow
+          ? await syncToSheet({ action: "update", sheetRow: item.sheetRow, item: priceListItemToInput(item) })
+          : await appendMissingSheetRow(item);
+
+        return { item, persisted: true, sheet };
       }
     } catch {
       // Cae al guardado local.
@@ -190,10 +234,11 @@ export async function updatePriceListItem(id: string, input: PriceListItemInput)
     updatedAt: new Date().toISOString(),
   };
   saveLocalItems(readLocalItems().map((entry) => (entry.id === id ? item : entry)));
-  return { item, persisted: false };
+  return { item, persisted: false, sheet: null };
 }
 
 export async function deletePriceListItem(id: string) {
+  const current = readLocalItems().find((item) => item.id === id);
   let persisted = false;
 
   if (isSupabaseConfigured && supabase) {
@@ -211,5 +256,13 @@ export async function deletePriceListItem(id: string) {
   }
 
   saveLocalItems(readLocalItems().filter((item) => item.id !== id));
-  return { persisted };
+
+  // Se vacia la fila en lugar de eliminarla: borrarla correria todas las de abajo
+  // y dejaria mal el sheetRow del resto de los vehiculos.
+  const sheet =
+    persisted && current?.sheetRow
+      ? await syncToSheet({ action: "clear", sheetRow: current.sheetRow })
+      : null;
+
+  return { persisted, sheet };
 }

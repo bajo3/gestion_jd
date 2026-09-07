@@ -4,10 +4,22 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { parseAssistantWithGlm } from "./api/ai-assistant.js";
 import { runWorkspaceAssistant } from "./api/workspace-assistant.js";
+import { syncPriceListToSheet } from "./api/sheets-sync.js";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  for (const key of ["ZAI_API_KEY", "GLM_API_KEY", "ZAI_MODEL", "ZAI_BASE_URL"]) {
+  const serverEnvKeys = [
+    "ZAI_API_KEY",
+    "GLM_API_KEY",
+    "ZAI_MODEL",
+    "ZAI_BASE_URL",
+    "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+    "GOOGLE_PRIVATE_KEY",
+    "GOOGLE_SHEET_ID",
+    "GOOGLE_SHEET_NAME",
+  ];
+
+  for (const key of serverEnvKeys) {
     if (!process.env[key] && env[key]) {
       process.env[key] = env[key];
     }
@@ -62,6 +74,10 @@ export default defineConfig(({ mode }) => {
 
           server.middlewares.use("/api/workspace-assistant", async (request, response) => {
             handlePost(request, response, runWorkspaceAssistant);
+          });
+
+          server.middlewares.use("/api/sheets-sync", async (request, response) => {
+            handlePost(request, response, syncPriceListToSheet);
           });
         },
       },

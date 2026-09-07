@@ -19,6 +19,7 @@ import {
   sortPriceListItems,
   updatePriceListItem,
 } from "@/services/priceListService";
+import type { SheetSyncResult } from "@/services/sheetsSyncService";
 import {
   emptyPriceListItem,
   type PriceListItem,
@@ -29,6 +30,18 @@ const NEW_ITEM_ID = "nuevo";
 
 function buildNewItem(brand: string): PriceListItem {
   return { ...emptyPriceListItem(brand), id: NEW_ITEM_ID, createdAt: "", updatedAt: "" };
+}
+
+/**
+ * Un solo mensaje que cuenta las dos mitades del guardado: si quedo en Supabase
+ * y si ademas se reflejo en la planilla de Google.
+ */
+function saveNotice(persisted: boolean, sheet: SheetSyncResult | null, done: string) {
+  if (!persisted) return `${done} solo en este telefono: no hubo conexion.`;
+  if (!sheet) return `${done}.`;
+  if (sheet.ok) return `${done} y la planilla quedo actualizada.`;
+  if (sheet.skipped) return `${done}. La planilla de Google todavia no esta conectada.`;
+  return `${done}, pero la planilla no se actualizo: ${sheet.error ?? "error desconocido"}.`;
 }
 
 export function ListaPreciosPage() {
@@ -77,16 +90,16 @@ export function ListaPreciosPage() {
   const groups = useMemo(() => groupByBrand(filtered), [filtered]);
   const publicCount = useMemo(() => items.filter((item) => item.isPublic).length, [items]);
 
-  const flash = (message: string) => {
+  const flash = (message: string, durationMs = 3000) => {
     setNotice(message);
-    window.setTimeout(() => setNotice(""), 2600);
+    window.setTimeout(() => setNotice(""), durationMs);
   };
 
   const handleSave = async (id: string, input: PriceListItemInput) => {
-    const { item, persisted } = await updatePriceListItem(id, input);
+    const { item, persisted, sheet } = await updatePriceListItem(id, input);
     setItems((current) => sortPriceListItems(current.map((entry) => (entry.id === id ? item : entry))));
     setExpandedId(null);
-    flash(persisted ? "Cambios guardados." : "Guardado solo en este telefono: no hubo conexion.");
+    flash(saveNotice(persisted, sheet, "Cambios guardados"), 6000);
   };
 
   const handleCreate = async (input: PriceListItemInput) => {
@@ -98,17 +111,17 @@ export function ListaPreciosPage() {
     const brandItems = items.filter((entry) => entry.brand === input.brand.trim());
     const nextOrder = brandItems.reduce((max, entry) => Math.max(max, entry.sortOrder), 0) + 10;
 
-    const { item, persisted } = await createPriceListItem({ ...input, sortOrder: nextOrder });
+    const { item, persisted, sheet } = await createPriceListItem({ ...input, sortOrder: nextOrder });
     setItems((current) => sortPriceListItems([...current, item]));
     setCreating(false);
-    flash(persisted ? "Vehiculo agregado." : "Agregado solo en este telefono: no hubo conexion.");
+    flash(saveNotice(persisted, sheet, "Vehiculo agregado"), 6000);
   };
 
   const handleDelete = async (id: string) => {
-    const { persisted } = await deletePriceListItem(id);
+    const { persisted, sheet } = await deletePriceListItem(id);
     setItems((current) => current.filter((entry) => entry.id !== id));
     setExpandedId(null);
-    flash(persisted ? "Vehiculo borrado." : "Borrado solo en este telefono: no hubo conexion.");
+    flash(saveNotice(persisted, sheet, "Vehiculo borrado"), 6000);
   };
 
   const copyCatalogLink = async () => {

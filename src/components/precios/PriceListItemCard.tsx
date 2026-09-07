@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { formatPrice, formatPriceInput, parsePriceInput, priceListItemTitle } from "@/lib/priceList";
+import {
+  formatPrice,
+  formatPriceInput,
+  parsePriceInput,
+  priceListItemTitle,
+  priceListItemToInput,
+} from "@/lib/priceList";
 import {
   PRICE_CURRENCIES,
   type PriceCurrency,
@@ -20,28 +26,6 @@ type PriceListItemCardProps = {
   onSave: (input: PriceListItemInput) => Promise<void>;
   onDelete: () => Promise<void>;
 };
-
-function toInput(item: PriceListItem): PriceListItemInput {
-  return {
-    brand: item.brand,
-    unit: item.unit,
-    yearLabel: item.yearLabel,
-    kmLabel: item.kmLabel,
-    version: item.version,
-    color: item.color,
-    fuel: item.fuel,
-    traction: item.traction,
-    gearbox: item.gearbox,
-    displacement: item.displacement,
-    cashPrice: item.cashPrice,
-    listPrice: item.listPrice,
-    currency: item.currency,
-    controlMark: item.controlMark,
-    photoUrl: item.photoUrl,
-    isPublic: item.isPublic,
-    sortOrder: item.sortOrder,
-  };
-}
 
 const TEXT_FIELDS: Array<{ key: keyof PriceListItemInput; label: string; placeholder?: string }> = [
   { key: "brand", label: "Marca" },
@@ -64,7 +48,7 @@ export function PriceListItemCard({
   onSave,
   onDelete,
 }: PriceListItemCardProps) {
-  const [draft, setDraft] = useState<PriceListItemInput>(() => toInput(item));
+  const [draft, setDraft] = useState<PriceListItemInput>(() => priceListItemToInput(item));
   const [cashText, setCashText] = useState(() => formatPriceInput(item.cashPrice));
   const [listText, setListText] = useState(() => formatPriceInput(item.listPrice));
   const [saving, setSaving] = useState(false);
