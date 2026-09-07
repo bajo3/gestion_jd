@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Check, Copy, ExternalLink, Loader2, Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PriceListItemCard } from "@/components/precios/PriceListItemCard";
+import { SheetConflictPanel } from "@/components/precios/SheetConflictPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,8 +17,12 @@ import {
   createPriceListItem,
   deletePriceListItem,
   listPriceListItems,
+  pullSheetChanges,
+  resolveConflictWithSheet,
+  resolveConflictWithWeb,
   sortPriceListItems,
   updatePriceListItem,
+  type SheetConflict,
 } from "@/services/priceListService";
 import type { SheetSyncResult } from "@/services/sheetsSyncService";
 import {
@@ -29,7 +34,14 @@ import {
 const NEW_ITEM_ID = "nuevo";
 
 function buildNewItem(brand: string): PriceListItem {
-  return { ...emptyPriceListItem(brand), id: NEW_ITEM_ID, createdAt: "", updatedAt: "" };
+  return { ...emptyPriceListItem(brand), id: NEW_ITEM_ID, sheetSnapshot: "", createdAt: "", updatedAt: "" };
+}
+
+function describePull(imported: number, created: number) {
+  const parts = [];
+  if (imported) parts.push(`${imported} ${imported === 1 ? "cambio" : "cambios"}`);
+  if (created) parts.push(`${created} ${created === 1 ? "vehiculo nuevo" : "vehiculos nuevos"}`);
+  return `Se importo de la planilla: ${parts.join(" y ")}.`;
 }
 
 /**
@@ -54,17 +66,45 @@ export function ListaPreciosPage() {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState("");
+  const [conflicts, setConflicts] = useState<SheetConflict[]>([]);
+
+  const flash = (message: string, durationMs = 3000) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), durationMs);
+  };
 
   useEffect(() => {
     let active = true;
 
-    listPriceListItems()
-      .then((data) => {
-        if (active) setItems(data);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    async function load() {
+      const data = await listPriceListItems();
+      if (!active) return;
+
+      setItems(data);
+      setLoading(false);
+
+      // Trae lo que se haya editado a mano en la planilla. Lo que cambio de un
+      // solo lado se aplica solo; lo que cambio en los dos queda como conflicto.
+      const pull = await pullSheetChanges(data);
+      if (!active || pull.skipped) return;
+
+      if (pull.imported.length || pull.created.length) {
+        const changed = new Map([...pull.imported, ...pull.created].map((item) => [item.id, item]));
+        setItems((current) =>
+          sortPriceListItems([
+            ...current.map((item) => changed.get(item.id) ?? item),
+            ...pull.created.filter((item) => !current.some((entry) => entry.id === item.id)),
+          ]),
+        );
+        flash(describePull(pull.imported.length, pull.created.length), 6000);
+      } else if (pull.error) {
+        flash(`No se pudo leer la planilla: ${pull.error}`, 6000);
+      }
+
+      setConflicts(pull.conflicts);
+    }
+
+    load();
 
     return () => {
       active = false;
@@ -89,11 +129,6 @@ export function ListaPreciosPage() {
 
   const groups = useMemo(() => groupByBrand(filtered), [filtered]);
   const publicCount = useMemo(() => items.filter((item) => item.isPublic).length, [items]);
-
-  const flash = (message: string, durationMs = 3000) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), durationMs);
-  };
 
   const handleSave = async (id: string, input: PriceListItemInput) => {
     const { item, persisted, sheet } = await updatePriceListItem(id, input);
@@ -122,6 +157,23 @@ export function ListaPreciosPage() {
     setItems((current) => current.filter((entry) => entry.id !== id));
     setExpandedId(null);
     flash(saveNotice(persisted, sheet, "Vehiculo borrado"), 6000);
+  };
+
+  const dropConflict = (conflict: SheetConflict, resolved: PriceListItem) => {
+    setItems((current) =>
+      sortPriceListItems(current.map((item) => (item.id === resolved.id ? resolved : item))),
+    );
+    setConflicts((current) => current.filter((entry) => entry.item.id !== conflict.item.id));
+  };
+
+  const handleKeepWeb = async (conflict: SheetConflict) => {
+    dropConflict(conflict, await resolveConflictWithWeb(conflict));
+    flash("Quedo el valor de la web y se reescribio la planilla.");
+  };
+
+  const handleKeepSheet = async (conflict: SheetConflict) => {
+    dropConflict(conflict, await resolveConflictWithSheet(conflict));
+    flash("Quedo el valor de la planilla.");
   };
 
   const copyCatalogLink = async () => {
@@ -195,6 +247,14 @@ export function ListaPreciosPage() {
           ))}
         </div>
       </div>
+
+      {conflicts.length ? (
+        <SheetConflictPanel
+          conflicts={conflicts}
+          onKeepWeb={handleKeepWeb}
+          onKeepSheet={handleKeepSheet}
+        />
+      ) : null}
 
       {notice ? (
         <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">

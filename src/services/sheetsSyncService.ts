@@ -1,27 +1,27 @@
-import type { PriceListItemInput } from "@/types/priceList";
-
 const SHEETS_SYNC_URL = "/api/sheets-sync";
 
-export type SheetSyncAction = "update" | "append" | "clear";
+export type SheetSyncAction = "read" | "update" | "append" | "clear";
 
 export type SheetSyncResult = {
   ok: boolean;
   /** true cuando el endpoint existe pero todavia no hay credenciales de Google. */
   skipped?: boolean;
   sheetRow?: number | null;
+  /** Solo en "read": la planilla entera, sin normalizar. */
+  rows?: string[][];
   error?: string;
 };
 
 type SheetSyncPayload = {
   action: SheetSyncAction;
   sheetRow?: number | null;
-  item?: PriceListItemInput;
+  /** Fila ya formateada por el cliente (columnas A..L). */
+  values?: string[];
 };
 
 /**
- * Refleja en la planilla de Google el cambio que ya se guardo en Supabase.
- * Nunca lanza: si Google falla, Supabase igual quedo actualizado y la pagina
- * avisa que la planilla quedo desincronizada.
+ * Habla con la planilla de Google. Nunca lanza: si Google falla, Supabase ya
+ * quedo actualizado y la pagina avisa que la planilla quedo desincronizada.
  */
 export async function syncToSheet(payload: SheetSyncPayload): Promise<SheetSyncResult> {
   try {

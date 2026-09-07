@@ -1,8 +1,14 @@
 # Sincronizar la lista de precios con la planilla de Google
 
-Cuando editás un precio en `/lista-precios`, el cambio se guarda en Supabase y
-además se escribe en la planilla de Google. Para que la segunda mitad funcione
-hay que darle a la app permiso de edición sobre el documento.
+La sincronización va en los dos sentidos:
+
+- **Web → planilla**: al guardar un precio en `/lista-precios`, se escribe la
+  fila correspondiente de la planilla.
+- **Planilla → web**: al abrir `/lista-precios`, se lee la planilla y se importa
+  todo lo que hayas editado a mano ahí.
+
+Para las dos mitades alcanza con darle a la app permiso de edición sobre el
+documento.
 
 Mientras no esté configurado, la app funciona igual: guarda en Supabase y avisa
 *"La planilla de Google todavía no está conectada"*.
@@ -83,11 +89,38 @@ Si algo falla, el mensaje te muestra el error que devolvió Google.
 - Los precios se escriben como texto (`$25.900.000` o `31.400 USD`), que es el
   formato con el que se venían cargando a mano.
 
+## Cómo detecta lo que editaste a mano
+
+Google no expone una fecha de modificación por fila: la API devuelve los valores
+y nada más. Así que no alcanza con leer la planilla para saber qué cambió.
+
+La app resuelve eso guardando en `sheet_snapshot` cómo quedó cada fila la última
+vez que la escribió o la importó. Al leer compara contra ese snapshot:
+
+| Planilla vs snapshot | Web vs snapshot | Qué hace |
+| --- | --- | --- |
+| igual | igual | nada |
+| distinta | igual | importa el cambio de la planilla |
+| igual | distinta | reescribe la fila (recupera una escritura que había fallado) |
+| distinta | distinta | **conflicto**: te muestra los dos valores y elegís |
+
+La comparación es por valor, no por texto: si en la planilla figura
+`$24,900,000` y la app escribe `$24.900.000`, para el sistema es lo mismo y no
+lo cuenta como cambio.
+
+Las filas que aparecen en la planilla y no existen en la base se dan de alta
+como vehículos nuevos, tomando la marca del último título que haya arriba.
+
 ## Limitaciones que conviene tener presentes
 
-- **La sincronización es en un solo sentido.** Si editás directo en Google
-  Sheets, la web no se entera. Conviene editar siempre desde la web.
-- **Las filas de marca y las filas vacías no se tocan.** La app solo escribe en
-  las filas de vehículos.
+- **La lectura pasa al abrir `/lista-precios`.** No hay aviso en tiempo real: si
+  editás la planilla con la web abierta, tenés que recargar para verlo.
+- **El catálogo público no lee la planilla.** Lee solo Supabase, para no gastar
+  llamadas a Google con cada visita de un cliente.
+- **La marca no viaja a la planilla.** En el Excel la marca es un título de fila,
+  no una columna, así que cambiar un auto de marca desde la web no lo mueve de
+  lugar en la planilla.
+- **Las filas de marca y las vacías no se tocan.** La app solo lee y escribe
+  filas de vehículos.
 - **Si Google falla, Supabase ya guardó.** El mensaje te avisa que la planilla
-  quedó desactualizada; volvé a guardar el vehículo para reintentar.
+  quedó desactualizada, y la próxima vez que abras la lista se reintenta sola.

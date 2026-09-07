@@ -1,9 +1,17 @@
-import { priceListItemToInput } from "@/lib/priceList";
+import {
+  isSheetBrandHeader,
+  isSheetRowEmpty,
+  normalizeSheetValues,
+  priceListItemToInput,
+  priceListItemToSheetValues,
+  sheetValuesSignature,
+  sheetValuesToPriceListInput,
+} from "@/lib/priceList";
 import { readStorage, writeStorage } from "@/lib/storage";
 import { generateId } from "@/lib/utils";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import { syncToSheet } from "@/services/sheetsSyncService";
-import type { PriceCurrency, PriceListItem, PriceListItemInput } from "@/types/priceList";
+import { emptyPriceListItem, type PriceCurrency, type PriceListItem, type PriceListItemInput } from "@/types/priceList";
 
 const STORAGE_KEY = "gestion-jd-lista-precios";
 const PRICE_LIST_TABLE = "gestion_jd_lista_precios";
@@ -29,6 +37,7 @@ type DbPriceListItem = {
   photo_url?: string | null;
   is_public?: boolean | null;
   sheet_row?: number | null;
+  sheet_snapshot?: string | null;
   sort_order?: number | null;
   created_at: string;
   updated_at: string;
@@ -64,6 +73,7 @@ function mapDbItem(item: DbPriceListItem): PriceListItem {
     photoUrl: item.photo_url ?? "",
     isPublic: item.is_public !== false,
     sheetRow: toNumber(item.sheet_row),
+    sheetSnapshot: item.sheet_snapshot ?? "",
     sortOrder: Number.isFinite(item.sort_order) ? Number(item.sort_order) : 0,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
@@ -141,14 +151,21 @@ export async function listPriceListItems({ onlyPublic = false } = {}) {
   return onlyPublic ? localItems.filter((item) => item.isPublic) : localItems;
 }
 
-/** Guarda en Supabase la fila que Google le asigno al vehiculo. */
-async function writeSheetRow(item: PriceListItem, sheetRow: number) {
+export function priceListItemSignature(item: PriceListItem | PriceListItemInput) {
+  return sheetValuesSignature(priceListItemToSheetValues(item));
+}
+
+/**
+ * Anota que este vehiculo y su fila de la planilla estan alineados.
+ * El snapshot es lo que despues permite distinguir quien cambio que.
+ */
+async function markSheetSynced(item: PriceListItem, sheetRow: number | null, snapshot: string) {
   if (!isSupabaseConfigured || !supabase) return null;
 
   try {
     const { data, error } = await supabase
       .from(PRICE_LIST_TABLE)
-      .update({ sheet_row: sheetRow })
+      .update({ sheet_row: sheetRow ?? item.sheetRow, sheet_snapshot: snapshot })
       .eq("id", item.id)
       .eq("app_source", APP_SOURCE)
       .select("*")
@@ -161,11 +178,17 @@ async function writeSheetRow(item: PriceListItem, sheetRow: number) {
   }
 }
 
-/** Un vehiculo que todavia no existe en la planilla se agrega al final. */
-async function appendMissingSheetRow(item: PriceListItem) {
-  const sheet = await syncToSheet({ action: "append", item: priceListItemToInput(item) });
-  if (sheet.ok && sheet.sheetRow) await writeSheetRow(item, sheet.sheetRow);
-  return sheet;
+/** Empuja el vehiculo a la planilla: reescribe su fila o la crea si no tiene. */
+async function pushItemToSheet(item: PriceListItem) {
+  const values = priceListItemToSheetValues(item);
+  const sheet = item.sheetRow
+    ? await syncToSheet({ action: "update", sheetRow: item.sheetRow, values })
+    : await syncToSheet({ action: "append", values });
+
+  if (!sheet.ok) return { sheet, item };
+
+  const synced = await markSheetSynced(item, sheet.sheetRow ?? item.sheetRow, sheetValuesSignature(values));
+  return { sheet, item: synced ?? item };
 }
 
 export async function createPriceListItem(input: PriceListItemInput) {
@@ -178,14 +201,8 @@ export async function createPriceListItem(input: PriceListItemInput) {
         .single();
 
       if (!error && data) {
-        let item = mapDbItem(data as DbPriceListItem);
-
         // La planilla asigna la fila; recien ahi sabemos que sheetRow guardar.
-        const sheet = await syncToSheet({ action: "append", item: priceListItemToInput(item) });
-        if (sheet.ok && sheet.sheetRow) {
-          item = (await writeSheetRow(item, sheet.sheetRow)) ?? item;
-        }
-
+        const { item, sheet } = await pushItemToSheet(mapDbItem(data as DbPriceListItem));
         saveLocalItems([...readLocalItems(), item]);
         return { item, persisted: true, sheet };
       }
@@ -195,7 +212,13 @@ export async function createPriceListItem(input: PriceListItemInput) {
   }
 
   const now = new Date().toISOString();
-  const item: PriceListItem = { ...input, id: generateId(), createdAt: now, updatedAt: now };
+  const item: PriceListItem = {
+    ...input,
+    id: generateId(),
+    sheetSnapshot: "",
+    createdAt: now,
+    updatedAt: now,
+  };
   saveLocalItems([...readLocalItems(), item]);
   return { item, persisted: false, sheet: null };
 }
@@ -212,13 +235,8 @@ export async function updatePriceListItem(id: string, input: PriceListItemInput)
         .single();
 
       if (!error && data) {
-        const item = mapDbItem(data as DbPriceListItem);
+        const { item, sheet } = await pushItemToSheet(mapDbItem(data as DbPriceListItem));
         saveLocalItems(readLocalItems().map((current) => (current.id === id ? item : current)));
-
-        const sheet = item.sheetRow
-          ? await syncToSheet({ action: "update", sheetRow: item.sheetRow, item: priceListItemToInput(item) })
-          : await appendMissingSheetRow(item);
-
         return { item, persisted: true, sheet };
       }
     } catch {
@@ -230,6 +248,7 @@ export async function updatePriceListItem(id: string, input: PriceListItemInput)
   const item: PriceListItem = {
     ...input,
     id,
+    sheetSnapshot: current?.sheetSnapshot ?? "",
     createdAt: current?.createdAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -265,4 +284,171 @@ export async function deletePriceListItem(id: string) {
       : null;
 
   return { persisted, sheet };
+}
+
+// --- Traer cambios hechos a mano en la planilla ---------------------------
+
+export type SheetConflict = {
+  item: PriceListItem;
+  /** Como quedaria el vehiculo si ganara la planilla. */
+  sheetInput: PriceListItemInput;
+  sheetSignature: string;
+};
+
+export type SheetPullResult = {
+  /** Vehiculos que solo cambiaron en la planilla y ya se importaron. */
+  imported: PriceListItem[];
+  /** Filas nuevas de la planilla, dadas de alta como vehiculos. */
+  created: PriceListItem[];
+  /** Vehiculos que se editaron de los dos lados: los resuelve el usuario. */
+  conflicts: SheetConflict[];
+  skipped?: boolean;
+  error?: string;
+};
+
+const EMPTY_PULL: SheetPullResult = { imported: [], created: [], conflicts: [] };
+
+/** Guarda en Supabase una fila importada de la planilla, sin volver a escribirla ahi. */
+async function applySheetImport(item: PriceListItem, input: PriceListItemInput, signature: string) {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from(PRICE_LIST_TABLE)
+      .update({ ...itemPayload(input), sheet_snapshot: signature })
+      .eq("id", item.id)
+      .eq("app_source", APP_SOURCE)
+      .select("*")
+      .single();
+
+    if (error || !data) return null;
+    return mapDbItem(data as DbPriceListItem);
+  } catch {
+    return null;
+  }
+}
+
+/** La marca de un vehiculo es el ultimo titulo de marca que aparece arriba suyo. */
+function brandForRow(rows: string[][], rowIndex: number) {
+  for (let index = rowIndex - 1; index >= 0; index -= 1) {
+    if (isSheetBrandHeader(rows[index] ?? [])) return (rows[index][0] ?? "").trim().toUpperCase();
+  }
+  return "";
+}
+
+/**
+ * Lee la planilla y decide, fila por fila, de que lado hubo cambios comparando
+ * contra el snapshot guardado:
+ *
+ * - nadie cambio nada        -> no se toca
+ * - solo cambio la planilla  -> se importa solo
+ * - solo cambio la web       -> se reescribe la fila (recupera un push fallido)
+ * - cambiaron los dos        -> conflicto, lo resuelve el usuario
+ *
+ * Las filas de marca y las vacias se ignoran; las filas nuevas se dan de alta.
+ */
+export async function pullSheetChanges(items: PriceListItem[]): Promise<SheetPullResult> {
+  const sheet = await syncToSheet({ action: "read" });
+  if (!sheet.ok) {
+    return { ...EMPTY_PULL, skipped: sheet.skipped, error: sheet.error };
+  }
+
+  const rows = sheet.rows ?? [];
+  const bySheetRow = new Map(items.filter((item) => item.sheetRow).map((item) => [item.sheetRow, item]));
+  const result: SheetPullResult = { imported: [], created: [], conflicts: [] };
+
+  for (const [index, values] of rows.entries()) {
+    const sheetRow = index + 1;
+    if (isSheetRowEmpty(values) || isSheetBrandHeader(values)) continue;
+
+    const item = bySheetRow.get(sheetRow);
+    const base = item ? priceListItemToInput(item) : emptyPriceListItem();
+    const signature = sheetValuesSignature(normalizeSheetValues(values, base));
+
+    if (!item) {
+      // Fila cargada a mano en la planilla: se da de alta como vehiculo nuevo.
+      const brand = brandForRow(rows, index);
+      if (!brand || (values[0] ?? "").trim().toUpperCase() === "UNIDAD") continue;
+
+      const input = sheetValuesToPriceListInput(values, {
+        ...emptyPriceListItem(brand),
+        sheetRow,
+        sortOrder: sheetRow * 10,
+      });
+
+      const created = await insertImportedItem(input, signature);
+      if (created) result.created.push(created);
+      continue;
+    }
+
+    // Sin snapshot no hay con que comparar: pasa la primera vez, con la lista
+    // recien importada. Como la base se sembro desde la planilla, la planilla
+    // manda, y si ya coinciden solo se adopta el snapshot sin ruido.
+    if (!item.sheetSnapshot) {
+      if (signature === priceListItemSignature(item)) {
+        await markSheetSynced(item, item.sheetRow, signature);
+      } else {
+        const input = sheetValuesToPriceListInput(values, base);
+        const imported = await applySheetImport(item, input, signature);
+        if (imported) result.imported.push(imported);
+      }
+      continue;
+    }
+
+    const sheetChanged = signature !== item.sheetSnapshot;
+    const webChanged = priceListItemSignature(item) !== item.sheetSnapshot;
+
+    if (!sheetChanged && !webChanged) continue;
+
+    if (sheetChanged && webChanged) {
+      result.conflicts.push({
+        item,
+        sheetInput: sheetValuesToPriceListInput(values, base),
+        sheetSignature: signature,
+      });
+      continue;
+    }
+
+    if (sheetChanged) {
+      const input = sheetValuesToPriceListInput(values, base);
+      const imported = await applySheetImport(item, input, signature);
+      if (imported) result.imported.push(imported);
+      continue;
+    }
+
+    // Solo cambio la web: la planilla quedo atras, se reescribe.
+    await pushItemToSheet(item);
+  }
+
+  return result;
+}
+
+/** Alta de un vehiculo que aparecio a mano en la planilla. */
+async function insertImportedItem(input: PriceListItemInput, signature: string) {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from(PRICE_LIST_TABLE)
+      .insert({ ...itemPayload(input), sheet_snapshot: signature })
+      .select("*")
+      .single();
+
+    if (error || !data) return null;
+    return mapDbItem(data as DbPriceListItem);
+  } catch {
+    return null;
+  }
+}
+
+/** El usuario eligio que gane la planilla en un conflicto. */
+export async function resolveConflictWithSheet(conflict: SheetConflict) {
+  const item = await applySheetImport(conflict.item, conflict.sheetInput, conflict.sheetSignature);
+  return item ?? conflict.item;
+}
+
+/** El usuario eligio que gane la web: se reescribe la fila de la planilla. */
+export async function resolveConflictWithWeb(conflict: SheetConflict) {
+  const { item } = await pushItemToSheet(conflict.item);
+  return item;
 }

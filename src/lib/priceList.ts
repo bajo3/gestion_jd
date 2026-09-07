@@ -94,3 +94,105 @@ export function groupByBrand(items: PriceListItem[]) {
   }
   return [...groups.entries()];
 }
+
+// --- Puente con la planilla de Google -------------------------------------
+// La planilla usa las columnas A..L en este orden. El cliente arma y lee las
+// filas para que el endpoint sea un escritor tonto y no haya dos formatos.
+
+export const SHEET_COLUMN_COUNT = 12;
+
+const SIGNATURE_SEPARATOR = "\u0001";
+
+/** Escribe el precio como texto, igual que se venia cargando a mano. */
+function formatSheetPrice(value: number | null, currency: PriceCurrency) {
+  if (value === null || !Number.isFinite(value)) return "";
+  const amount = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(value);
+  return currency === "USD" ? `${amount} USD` : `$${amount}`;
+}
+
+export function priceListItemToSheetValues(item: PriceListItem | PriceListItemInput) {
+  return [
+    item.unit,
+    item.yearLabel,
+    item.kmLabel,
+    item.version,
+    item.color,
+    item.fuel,
+    item.traction,
+    item.gearbox,
+    item.displacement,
+    formatSheetPrice(item.cashPrice, item.currency),
+    formatSheetPrice(item.listPrice, item.currency),
+    item.controlMark,
+  ].map((value) => (typeof value === "string" ? value.trim() : ""));
+}
+
+/**
+ * Texto estable de una fila, para detectar si la planilla cambio.
+ * Normaliza el largo porque Google recorta las celdas vacias del final.
+ */
+export function sheetValuesSignature(values: readonly string[]) {
+  const normalized = Array.from({ length: SHEET_COLUMN_COUNT }, (_, index) =>
+    (values[index] ?? "").trim(),
+  );
+  return normalized.join(SIGNATURE_SEPARATOR);
+}
+
+/** "31.400 USD" -> 31400 en dolares; "$24.900.000" -> 24900000 en pesos. */
+function parseSheetPrice(raw: string): { value: number | null; currency: PriceCurrency | null } {
+  const text = (raw ?? "").trim();
+  if (!text) return { value: null, currency: null };
+
+  const digits = text.replace(/\D/g, "");
+  if (!digits) return { value: null, currency: null };
+
+  return { value: Number(digits), currency: /usd|u\$s|dolar/i.test(text) ? "USD" : "ARS" };
+}
+
+/** Convierte una fila de la planilla en los campos editables de un vehiculo. */
+export function sheetValuesToPriceListInput(
+  values: readonly string[],
+  base: PriceListItemInput,
+): PriceListItemInput {
+  const at = (index: number) => (values[index] ?? "").trim();
+  const cash = parseSheetPrice(at(9));
+  const list = parseSheetPrice(at(10));
+
+  return {
+    ...base,
+    unit: at(0),
+    yearLabel: at(1),
+    kmLabel: at(2),
+    version: at(3),
+    color: at(4),
+    fuel: at(5),
+    traction: at(6),
+    gearbox: at(7),
+    displacement: at(8),
+    cashPrice: cash.value,
+    listPrice: list.value,
+    currency: cash.currency ?? list.currency ?? base.currency,
+    controlMark: at(11),
+  };
+}
+
+/**
+ * Pasa la fila cruda por el mismo formateo que usa la app al escribir.
+ * Asi "$24,900,000" y "$24.900.000" son la misma fila, y solo cuentan los
+ * cambios de valor reales, no como quedo tipeado a mano en la planilla.
+ */
+export function normalizeSheetValues(values: readonly string[], base: PriceListItemInput) {
+  return priceListItemToSheetValues(sheetValuesToPriceListInput(values, base));
+}
+
+/** Una fila con solo la columna A cargada es un titulo de marca, no un vehiculo. */
+export function isSheetBrandHeader(values: readonly string[]) {
+  const [first, ...rest] = Array.from({ length: SHEET_COLUMN_COUNT }, (_, i) => (values[i] ?? "").trim());
+  return Boolean(first) && rest.every((value) => !value);
+}
+
+export function isSheetRowEmpty(values: readonly string[]) {
+  return Array.from({ length: SHEET_COLUMN_COUNT }, (_, i) => (values[i] ?? "").trim()).every(
+    (value) => !value,
+  );
+}

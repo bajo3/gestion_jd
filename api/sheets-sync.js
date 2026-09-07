@@ -8,6 +8,7 @@ const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 // traccion, caja, cilindrada, precio contado, precio lista y la marca de control.
 const FIRST_COLUMN = "A";
 const LAST_COLUMN = "L";
+const COLUMN_COUNT = 12;
 
 let cachedToken = null;
 
@@ -96,34 +97,10 @@ function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-/** Escribe los precios como texto, igual que se venian cargando a mano en la planilla. */
-function formatPrice(value, currency) {
-  if (value === null || value === undefined || value === "") return "";
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return "";
-
-  const grouped = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(amount);
-  return currency === "USD" ? `${grouped} USD` : `$${grouped}`;
-}
-
-function toSheetRow(item) {
-  const source = item && typeof item === "object" ? item : {};
-  const currency = source.currency === "USD" ? "USD" : "ARS";
-
-  return [
-    cleanString(source.unit),
-    cleanString(source.yearLabel),
-    cleanString(source.kmLabel),
-    cleanString(source.version),
-    cleanString(source.color),
-    cleanString(source.fuel),
-    cleanString(source.traction),
-    cleanString(source.gearbox),
-    cleanString(source.displacement),
-    formatPrice(source.cashPrice, currency),
-    formatPrice(source.listPrice, currency),
-    cleanString(source.controlMark),
-  ];
+/** El cliente arma la fila (columnas A..L); aca solo se valida el largo. */
+function toSheetRow(values) {
+  const source = Array.isArray(values) ? values : [];
+  return Array.from({ length: COLUMN_COUNT }, (_, index) => cleanString(source[index]));
 }
 
 async function callSheets(path, { method = "GET", body, token }) {
@@ -152,11 +129,13 @@ function parseUpdatedRow(updatedRange) {
 }
 
 /**
- * Refleja en la planilla de Google un cambio hecho desde la web.
+ * Puente con la planilla de Google. El formato de las filas vive en el cliente
+ * (`src/lib/priceList.ts`), asi que aca solo se lee y se escribe.
  *
- * - update: reescribe la fila `sheetRow` completa.
+ * - read:   devuelve la planilla entera (columnas A..L).
+ * - update: reescribe la fila `sheetRow` con los `values` recibidos.
  * - append: agrega una fila al final y devuelve su numero.
- * - clear: vacia la fila sin borrarla, para no correr las filas de abajo
+ * - clear:  vacia la fila sin borrarla, para no correr las filas de abajo
  *   (eso invalidaria el sheetRow guardado del resto de los vehiculos).
  */
 export async function syncPriceListToSheet(payload) {
@@ -170,11 +149,23 @@ export async function syncPriceListToSheet(payload) {
   const { sheetName } = getConfig();
   const token = await getAccessToken();
 
+  if (action === "read") {
+    const result = await callSheets(
+      `/values/${encodeURIComponent(buildRange(sheetName, `${FIRST_COLUMN}:${LAST_COLUMN}`))}` +
+        `?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`,
+      { token },
+    );
+
+    // Google recorta las filas y celdas vacias del final: se devuelven tal cual
+    // y el cliente normaliza, que es donde vive el formato de la planilla.
+    return { ok: true, action, rows: Array.isArray(result?.values) ? result.values : [] };
+  }
+
   if (action === "append") {
     const result = await callSheets(
       `/values/${encodeURIComponent(buildRange(sheetName, `${FIRST_COLUMN}:${LAST_COLUMN}`))}:append` +
         `?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-      { method: "POST", token, body: { values: [toSheetRow(body.item)] } },
+      { method: "POST", token, body: { values: [toSheetRow(body.values)] } },
     );
 
     return { ok: true, action, sheetRow: parseUpdatedRow(result?.updates?.updatedRange) };
@@ -200,7 +191,7 @@ export async function syncPriceListToSheet(payload) {
 
   await callSheets(
     `/values/${encodeURIComponent(rowRange(sheetName, sheetRow))}?valueInputOption=RAW`,
-    { method: "PUT", token, body: { values: [toSheetRow(body.item)] } },
+    { method: "PUT", token, body: { values: [toSheetRow(body.values)] } },
   );
 
   return { ok: true, action, sheetRow };

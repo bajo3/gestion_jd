@@ -5,5 +5,6 @@ export function syncPriceListToSheet(payload: unknown): Promise<{
   skipped?: boolean;
   action?: string;
   sheetRow?: number | null;
+  rows?: string[][];
   error?: string;
 }>;

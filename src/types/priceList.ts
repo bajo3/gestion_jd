@@ -22,12 +22,18 @@ export type PriceListItem = {
   isPublic: boolean;
   /** Fila que ocupa este vehiculo en la planilla de Google. null si nunca se escribio ahi. */
   sheetRow: number | null;
+  /** Como quedo la fila A..L la ultima vez que se sincronizo. Ver sheetValuesSignature. */
+  sheetSnapshot: string;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
 };
 
-export type PriceListItemInput = Omit<PriceListItem, "id" | "createdAt" | "updatedAt">;
+/** Lo editable de un vehiculo: sin ids ni la contabilidad de la sincronizacion. */
+export type PriceListItemInput = Omit<
+  PriceListItem,
+  "id" | "createdAt" | "updatedAt" | "sheetSnapshot"
+>;
 
 export function emptyPriceListItem(brand = ""): PriceListItemInput {
   return {
