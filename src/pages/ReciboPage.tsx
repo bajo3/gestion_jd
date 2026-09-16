@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -6,11 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
+import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { parseNumberish } from "@/lib/utils";
 import { amountToLetters, generateReciboPdf } from "@/pdf/reciboPdf";
 import { commitReceiptNumber, getNextReceiptNumber } from "@/services/receiptCounterService";
 import type { ReciboFormValues } from "@/types/forms";
-import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
+import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
 const today = new Date();
 
@@ -35,6 +37,22 @@ const initialState: ReciboFormValues = {
 
 export function ReciboPage() {
   const [values, form] = useObjectState(initialState);
+  const workflow = useDocumentWorkflow("recibo");
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const [documentId, setDocumentId] = useState(params.get("documentId"));
+  const [generated, setGenerated] = useState(false);
+
+  useEffect(() => {
+    const operationData = workflow.operation?.data as Record<string, string> | undefined;
+    if (workflow.client && !values.cliente) form.replace({ ...values, cliente: workflow.client.nombre, doc: workflow.client.dni, domicilio: workflow.client.domicilio, localidad: [workflow.client.localidad, workflow.client.provincia].filter(Boolean).join(" / "), concepto: values.concepto || `Seña de operación de ${workflow.client.nombre}`, vehiculo: workflow.prefill.vehiculo || (operationData?.dominio ? `Vehículo dominio ${operationData.dominio}` : values.vehiculo), vehiculoDominio: workflow.prefill.dominio || operationData?.dominio || values.vehiculoDominio });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow.client, workflow.prefill]);
+
+  useEffect(() => {
+    if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<typeof initialState>) });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow.saved]);
 
   useEffect(() => {
     const amount = parseNumberish(values.monto);
@@ -45,6 +63,8 @@ export function ReciboPage() {
 
   return (
     <DocumentPage title="Recibo" description="Recibo de seña o pago con correlativo local y opcion de duplicado.">
+      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Datos del recibo">
         <FormGrid columns="md:grid-cols-2 xl:grid-cols-4">
           <FormField label="N° de recibo">
@@ -124,11 +144,19 @@ export function ReciboPage() {
       <div className="flex flex-wrap justify-end gap-3">
         <Button
           onClick={async () => {
+            const result = await workflow.save(values as unknown as Record<string, unknown>, "generado", documentId ?? undefined, { newDocument: !documentId });
             await generateReciboPdf(values);
-            form.set("reciboNro", commitReceiptNumber());
+            if (result?.document) setDocumentId(result.document.id);
+            if (!generated && !documentId) {
+              commitReceiptNumber();
+              setGenerated(true);
+            }
           }}
         >
           Generar Resumen
+        </Button>
+        <Button variant="outline" onClick={() => { const next = new URLSearchParams(); ["clientId", "operationId", "vehicleId"].forEach((key) => { const value = params.get(key); if (value) next.set(key, value); }); next.set("newDocument", String(Date.now())); navigate(`/recibo?${next.toString()}`); }}>
+          Nuevo recibo
         </Button>
       </div>
     </DocumentPage>

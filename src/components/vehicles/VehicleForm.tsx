@@ -57,6 +57,10 @@ export function VehicleForm({
   const [fileCategory, setFileCategory] = useState<VehicleFile["category"]>("foto");
   const [fileNotes, setFileNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const availableStatuses = useMemo(
+    () => VEHICLE_STATUSES.filter((status) => status !== "vendido" || initialValues?.status === "vendido"),
+    [initialValues?.status],
+  );
 
   const fields = useMemo(
     () => ({
@@ -100,7 +104,7 @@ export function VehicleForm({
           </FormField>
           <FormField label="Estado">
             <Select value={values.status} onChange={(event) => fields.set("status", event.target.value as VehicleInput["status"])}>
-              {VEHICLE_STATUSES.map((status) => (
+              {availableStatuses.map((status) => (
                 <option key={status} value={status}>
                   {status.replaceAll("_", " ")}
                 </option>

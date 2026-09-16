@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Calculator, CheckCircle2, Clock, FileText, WalletCards } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, Clock, FileText, WalletCards, Users, CarFront } from "lucide-react";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { listFinalizedSales } from "@/services/clientsService";
 import { listCommercialAlerts } from "@/services/commercialAlertsService";
 import { listVehicles } from "@/services/vehiclesService";
 import type { CommercialAlert } from "@/types/commercialAlerts";
 import type { Vehicle } from "@/types/vehicles";
+import type { FinalizedSale } from "@/types/clients";
 
 const activeStatuses = ["pending", "postponed"];
 
@@ -46,11 +48,13 @@ function enrichAlerts(alerts: CommercialAlert[], vehicles: Vehicle[]) {
 export function VentasDashboardPage() {
   const [alerts, setAlerts] = useState<CommercialAlert[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [sales, setSales] = useState<FinalizedSale[]>([]);
 
   useEffect(() => {
-    Promise.all([listCommercialAlerts(), listVehicles()]).then(([nextAlerts, nextVehicles]) => {
+    Promise.all([listCommercialAlerts(), listVehicles(), listFinalizedSales()]).then(([nextAlerts, nextVehicles, nextSales]) => {
       setAlerts(nextAlerts);
       setVehicles(nextVehicles);
+      setSales(nextSales);
     });
   }, []);
 
@@ -59,6 +63,12 @@ export function VentasDashboardPage() {
   const sortedAlerts = [...activeAlerts].sort((a, b) => a.alertDate.localeCompare(b.alertDate));
 
   const metrics = [
+    {
+      label: "Ventas finalizadas",
+      value: String(sales.length),
+      detail: `${sales.filter((sale) => isThisMonth(sale.saleDate)).length} este mes`,
+      icon: <CarFront className="h-5 w-5 text-emerald-600" />,
+    },
     {
       label: "Alertas pendientes",
       value: String(activeAlerts.length),
@@ -99,11 +109,14 @@ export function VentasDashboardPage() {
             <Link to="/ventas/documentos">
               <Button variant="outline">Documentos</Button>
             </Link>
+            <Link to="/ventas/clientes">
+              <Button variant="outline">Clientes</Button>
+            </Link>
           </>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (
           <MetricCard key={metric.label} {...metric} />
         ))}
@@ -120,12 +133,27 @@ export function VentasDashboardPage() {
           <p className="mt-4 font-semibold text-slate-950">Documentos</p>
           <p className="mt-1 text-sm text-slate-500">Accesos a formularios comerciales actuales.</p>
         </Link>
+        <Link to="/ventas/clientes" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+          <Users className="h-5 w-5 text-slate-700" />
+          <p className="mt-4 font-semibold text-slate-950">Clientes</p>
+          <p className="mt-1 text-sm text-slate-500">Ficha e historial de operaciones.</p>
+        </Link>
         <Link to="/calculadora-0km" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
           <Calculator className="h-5 w-5 text-slate-700" />
           <p className="mt-4 font-semibold text-slate-950">Calculadora 0km</p>
           <p className="mt-1 text-sm text-slate-500">Quebranto y resumen de financiacion.</p>
         </Link>
       </div>
+
+      <Card>
+        <CardContent className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Ventas registradas</h2>
+            <p className="text-sm text-slate-500">Incluye el historial vendido existente; las ventas nuevas se agregan al confirmar una operación finalizada.</p>
+          </div>
+          {sales.length ? <div className="space-y-3">{sales.slice(0, 8).map((sale) => <div key={sale.operationId} className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-950">{sale.vehicleLabel}</p><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">Vendida</Badge>{sale.source === "vehicle_history" ? <Badge className="border-slate-200 bg-slate-50 text-slate-600">Histórica</Badge> : <Badge className="border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700">Operación finalizada</Badge>}{sale.hasCredit ? <Badge className="border-blue-200 bg-blue-50 text-blue-700">Con crédito</Badge> : null}</div><p className="text-sm text-slate-500">{sale.clientName}{sale.clientDni ? ` · DNI ${sale.clientDni}` : ""}{sale.licensePlate ? ` · ${sale.licensePlate}` : ""}</p></div><div className="flex items-center gap-4 md:text-right"><div><p className="font-semibold text-slate-950">{sale.salePrice ? formatCurrency(sale.salePrice) : "Precio sin cargar"}</p><p className="text-xs text-slate-500">{formatDate(sale.saleDate)}</p></div><div className="flex gap-2"><Link to={`/autos/${sale.vehicleId}`}><Button variant="outline">Ver auto</Button></Link>{sale.clientId ? <Link to={`/ventas/clientes/${encodeURIComponent(sale.clientId)}`}><Button variant="ghost">Ver cliente</Button></Link> : null}</div></div></div>)}</div> : <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">Todavía no hay ventas registradas.</div>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="space-y-4">

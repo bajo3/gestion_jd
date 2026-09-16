@@ -65,20 +65,10 @@ export function VehicleFiles({ files, onDelete }: VehicleFilesProps) {
     };
   }, [files]);
 
-  useEffect(() => {
-    if (!files.length) {
-      setSelectedId(null);
-      return;
-    }
-
-    if (selectedId && !files.some((file) => file.id === selectedId)) {
-      setSelectedId(null);
-    }
-  }, [files, selectedId]);
-
+  const activeSelectedId = selectedId && files.some((file) => file.id === selectedId) ? selectedId : null;
   const selectedFile = useMemo(
-    () => files.find((file) => file.id === selectedId) ?? null,
-    [files, selectedId],
+    () => files.find((file) => file.id === activeSelectedId) ?? null,
+    [files, activeSelectedId],
   );
 
   const selectedUrl = selectedFile ? resolvedUrls[selectedFile.id] || selectedFile.fileUrl || "" : "";
@@ -96,7 +86,7 @@ export function VehicleFiles({ files, onDelete }: VehicleFilesProps) {
             <div className="space-y-2">
               {files.map((file) => {
                 const resolvedUrl = resolvedUrls[file.id] || file.fileUrl || "";
-                const selected = file.id === selectedId;
+                const selected = file.id === activeSelectedId;
 
                 return (
                   <div

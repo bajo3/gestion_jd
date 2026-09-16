@@ -59,6 +59,7 @@ export type Vehicle = {
   hasCredit: boolean;
   creditStartDate: string;
   creditTotalInstallments: number | null;
+  creditInstallmentsText?: string;
   creditDueDay: number | null;
   createdAt: string;
   updatedAt: string;

@@ -1,10 +1,12 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
+import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { generateAutorizacionPdf } from "@/pdf/autorizacionPdf";
 import type { AutorizacionFormValues } from "@/types/forms";
-import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
+import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
 const initialState: AutorizacionFormValues = {
   diasValidos: "",
@@ -27,11 +29,43 @@ const initialState: AutorizacionFormValues = {
   propietarioLocalidad: "",
 };
 
+function resolveCurrentOwner(workflow: ReturnType<typeof useDocumentWorkflow>) {
+  const data = workflow.operation?.data as Record<string, unknown> | undefined;
+  const text = (...values: unknown[]) => values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
+  return {
+    nombre: text(workflow.client?.nombre, data?.propietarioNombre, data?.titular, data?.nombre, workflow.vehicle?.buyerName) ?? "",
+    dni: text(workflow.client?.dni, data?.propietarioDni, data?.titularDni, data?.dni) ?? "",
+    domicilio: text(workflow.client?.domicilio, data?.propietarioDomicilio, data?.domicilio) ?? "",
+    localidad: text(
+      [workflow.client?.localidad, workflow.client?.provincia].filter(Boolean).join(" / "),
+      data?.propietarioLocalidad,
+      data?.localidad,
+    ) ?? "",
+  };
+}
+
 export function AutorizacionPage() {
   const [values, form] = useObjectState(initialState);
+  const workflow = useDocumentWorkflow("autorizacion");
+  useEffect(() => {
+    const data = workflow.operation?.data as Record<string, string> | undefined;
+    const owner = resolveCurrentOwner(workflow);
+    if ((data || workflow.client || workflow.vehicle) && !values.autorizado) form.replace({ ...values, fecha: data?.fechaOperacion ?? values.fecha, autorizado: workflow.client?.nombre ?? data?.nombre ?? "", titular: owner.nombre, propietarioNombre: owner.nombre, propietarioDni: owner.dni, propietarioDomicilio: owner.domicilio, propietarioLocalidad: owner.localidad, dominio: workflow.prefill.dominio || data?.dominio || "", marca: workflow.prefill.vehiculoMarca, modelo: workflow.prefill.vehiculoModelo, anio: workflow.prefill.vehiculoAnio, domicilioAuto: workflow.prefill.domicilio });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow.client, workflow.operation, workflow.vehicle, workflow.prefill]);
+  useEffect(() => {
+    if (workflow.saved?.data) {
+      const savedData = workflow.saved.data as Partial<AutorizacionFormValues>;
+      const owner = resolveCurrentOwner(workflow);
+      form.replace({ ...initialState, ...savedData, titular: savedData.titular || owner.nombre, propietarioNombre: savedData.propietarioNombre || owner.nombre, propietarioDni: savedData.propietarioDni || owner.dni, propietarioDomicilio: savedData.propietarioDomicilio || owner.domicilio, propietarioLocalidad: savedData.propietarioLocalidad || owner.localidad });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, workflow.client, workflow.operation, workflow.saved, workflow.vehicle]);
 
   return (
     <DocumentPage title="Autorizacion de Conduccion" description="Permiso de autorizacion para circular y constancia asociada.">
+      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Informacion general">
         <FormGrid>
           <FormField label="Dias validos">
@@ -72,7 +106,7 @@ export function AutorizacionPage() {
         </FormGrid>
       </FormSection>
 
-      <FormSection title="Propietario actual">
+      <FormSection title="Propietario actual" description="Se completa automáticamente con el titular disponible en la operación o en la ficha del auto.">
         <FormGrid>
           <FormField label="Nombre y apellido">
             <Input value={values.propietarioNombre} onChange={(event) => form.set("propietarioNombre", event.target.value)} />
@@ -90,7 +124,7 @@ export function AutorizacionPage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={() => generateAutorizacionPdf(values)}>Generar Resumen</Button>
+        <Button onClick={async () => { await workflow.save(values as unknown as Record<string, unknown>, "generado"); await generateAutorizacionPdf(values); }}>Generar Resumen</Button>
       </div>
     </DocumentPage>
   );

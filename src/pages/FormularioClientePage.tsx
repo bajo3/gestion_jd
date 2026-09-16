@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
+import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
-import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
+import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
 type ClientState = {
   dni: string;
@@ -34,9 +35,18 @@ function ImagePreview({ file }: { file: File | null }) {
 
 export function FormularioClientePage() {
   const [values, form] = useObjectState(initialState);
+  const workflow = useDocumentWorkflow("formulario_cliente");
+  useEffect(() => {
+    if (workflow.client && !values.dni) form.replace({ ...initialState, dni: workflow.client.dni, cuil: workflow.client.cuil });
+  }, [form, values.dni, workflow.client]);
+  useEffect(() => {
+    if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<ClientState>) });
+  }, [form, workflow.saved]);
 
   return (
     <DocumentPage title="Formulario Cliente" description="Datos basicos, situacion laboral y documentacion de DNI para resumen interno.">
+      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Datos del cliente">
         <FormGrid columns="md:grid-cols-3">
           <FormField label="DNI">
@@ -90,13 +100,13 @@ export function FormularioClientePage() {
       <div className="flex justify-end">
         <Button
           onClick={() =>
-            generateFormularioClientePdf({
+            workflow.save({ dni: values.dni, cuil: values.cuil, situacionLaboral: values.situacionLaboral }, "generado").then(() => generateFormularioClientePdf({
               dni: values.dni,
               cuil: values.cuil,
               situacionLaboral: values.situacionLaboral,
               dniFrente: values.dniFrente,
               dniDorso: values.dniDorso,
-            })
+            }))
           }
         >
           Generar Resumen

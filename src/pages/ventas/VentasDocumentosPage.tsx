@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ClipboardList, FileText, Gauge, Receipt, ShieldCheck, Users, WalletCards } from "lucide-react";
+import { ClipboardList, FileText, Gauge, Receipt, ShieldCheck, Users, WalletCards, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 
@@ -9,6 +9,8 @@ const documents = [
   { to: "/datero", title: "Datero", description: "Ficha de datos para la gestion.", icon: ClipboardList },
   { to: "/recibo", title: "Recibo", description: "Recibo de pago o sena.", icon: Receipt },
   { to: "/presupuesto", title: "Presupuesto", description: "Operacion con credito y entrega.", icon: WalletCards },
+  { to: "/operacion-finalizada", title: "Operación finalizada", description: "Cierre explícito de venta y actualización del auto.", icon: CheckCircle2 },
+  { to: "/presupuesto-cliente", title: "Presupuesto para cliente", description: "Propuesta comercial lista para entregar.", icon: WalletCards },
   { to: "/test-drive", title: "Test Drive", description: "Registro y autorizacion de prueba.", icon: Gauge },
   { to: "/formulario-cliente", title: "Formulario Cliente", description: "DNI, CUIL, situacion laboral e imagenes.", icon: Users },
 ];

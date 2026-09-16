@@ -57,6 +57,7 @@ async function fetchSupabaseVehicles(): Promise<Vehicle[] | null> {
       hasCredit: Boolean(vehicle.has_credit),
       creditStartDate: vehicle.credit_start_date ?? "",
       creditTotalInstallments: vehicle.credit_total_installments ?? null,
+      creditInstallmentsText: vehicle.credit_installments_text ?? "",
       creditDueDay: vehicle.credit_due_day ?? null,
       createdAt: vehicle.created_at,
       updatedAt: vehicle.updated_at,
@@ -91,6 +92,9 @@ export async function getVehicleById(id: string) {
 }
 
 export async function createVehicle(input: VehicleInput) {
+  if (input.status === "vendido") {
+    throw new Error("Una venta sólo puede registrarse desde Operación finalizada.");
+  }
   const now = new Date().toISOString();
   const vehicle: Vehicle = {
     ...input,
@@ -124,6 +128,7 @@ export async function createVehicle(input: VehicleInput) {
         has_credit: vehicle.hasCredit,
         credit_start_date: vehicle.creditStartDate || null,
         credit_total_installments: vehicle.creditTotalInstallments,
+        credit_installments_text: vehicle.creditInstallmentsText ?? null,
         credit_due_day: vehicle.creditDueDay,
         created_at: vehicle.createdAt,
         updated_at: vehicle.updatedAt,
@@ -140,6 +145,10 @@ export async function createVehicle(input: VehicleInput) {
 }
 
 export async function updateVehicle(id: string, input: VehicleInput) {
+  const currentVehicle = await getVehicleById(id);
+  if (input.status === "vendido" && currentVehicle?.status !== "vendido") {
+    throw new Error("Una venta sólo puede registrarse desde Operación finalizada.");
+  }
   const updatedVehicle: Vehicle = {
     ...input,
     id,
@@ -172,6 +181,7 @@ export async function updateVehicle(id: string, input: VehicleInput) {
           has_credit: updatedVehicle.hasCredit,
           credit_start_date: updatedVehicle.creditStartDate || null,
           credit_total_installments: updatedVehicle.creditTotalInstallments,
+          credit_installments_text: updatedVehicle.creditInstallmentsText ?? null,
           credit_due_day: updatedVehicle.creditDueDay,
           updated_at: updatedVehicle.updatedAt,
         })

@@ -1,165 +1,175 @@
-import type { PresupuestoFormValues } from "@/types/forms";
 import { parseNumberish } from "@/lib/utils";
+import type { OperacionFinalizadaValues, PresupuestoValues } from "@/types/salesDocuments";
 import { createPdf, loadImageDataUrl, sanitizeFileName } from "./common";
 
-function parseMoney(v: string) {
-  return Math.max(0, Math.round(parseNumberish(v)));
+type PdfKind = "presupuesto" | "operacion";
+
+function moneyValue(value: string | undefined) {
+  return Math.max(0, Math.round(parseNumberish(value ?? "")));
 }
 
-function formatNumberAR(n: number) {
-  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n || 0);
+function formatMoney(value: number, currency: "ARS" | "USD") {
+  return `${currency === "USD" ? "USD " : "$ "}${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(value || 0)}`;
 }
 
-function formatMoney(n: number, moneda: "ARS" | "USD") {
-  const sym = moneda === "USD" ? "USD " : "$ ";
-  return `${sym}${formatNumberAR(n)}`;
+function safeText(value: string | undefined) {
+  return value?.trim() || "—";
 }
 
-export async function generatePresupuestoPdf(values: PresupuestoFormValues) {
+async function generateSalesPdf(values: PresupuestoValues | OperacionFinalizadaValues, kind: PdfKind) {
   const doc = createPdf({ orientation: "portrait", unit: "mm", format: "a4" });
   const logo = await loadImageDataUrl("/logo-jd-negro.png");
-  const margin = 12;
-  const pageW = doc.internal.pageSize.getWidth();
-  let y = 14;
+  const margin = 14;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const navy: [number, number, number] = [18, 35, 64];
+  const fuchsia: [number, number, number] = [238, 24, 128];
+  let y = 18;
 
-  const entregaEfectivo = parseMoney(values.entregaEfectivo);
-  const usadoToma = parseMoney(values.usadoToma);
-  const entregaTotal = entregaEfectivo + usadoToma;
-  const tomaCredito = values.tomaCredito === "si";
-  const creditoTotal = tomaCredito ? parseMoney(values.creditoTotal) : 0;
-  const gastosAdm = parseMoney(values.gastosAdm);
-  const transferencia = parseMoney(values.transferencia);
-  const creditoIncluyeExtras = tomaCredito && creditoTotal > 0 && (gastosAdm > 0 || transferencia > 0);
-  const totalOperacion = entregaTotal + creditoTotal + (creditoIncluyeExtras ? 0 : gastosAdm + transferencia);
-
-  if (logo) {
-    doc.addImage(logo, "PNG", margin, y - 6, 14, 14);
-  }
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Jesus Diaz Automotores", margin + (logo ? 18 : 0), y);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`Fecha: ${values.fecha}`, pageW - margin, y, { align: "right" });
-  y += 8;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("PRESUPUESTO", pageW / 2, y + 6, { align: "center" });
-  y += 16;
+  const footer = () => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Gestion JD · ${kind === "presupuesto" ? "Propuesta comercial" : "Documento interno de cierre"}`, margin, pageHeight - 8);
+    doc.text(`Página ${doc.getNumberOfPages()}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+  };
 
   const ensureSpace = (needed: number) => {
-    const pageH = doc.internal.pageSize.getHeight();
-    if (y + needed > pageH - margin) {
-      doc.addPage();
-      y = margin;
-    }
-  };
-
-  const drawSection = (title: string, lines: Array<{ label: string; value: string | string[] }>) => {
-    ensureSpace(30);
-    doc.setDrawColor(229);
-    doc.setLineWidth(0.3);
-    doc.line(margin, y, pageW - margin, y);
-    y += 6;
+    if (y + needed <= pageHeight - 17) return;
+    footer();
+    doc.addPage();
+    y = 18;
+    doc.setTextColor(...navy);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(title, margin, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-
-    lines.forEach((line) => {
-      ensureSpace(12);
-      doc.text(`${line.label}:`, margin, y);
-      if (Array.isArray(line.value)) {
-        line.value.forEach((entry) => {
-          doc.text(entry, margin + 44, y);
-          y += 5;
-        });
-      } else {
-        const wrapped = doc.splitTextToSize(line.value || "—", pageW - margin * 2 - 44);
-        doc.text(wrapped, margin + 44, y);
-        y += wrapped.length * 5;
-      }
-    });
-    y += 4;
+    doc.setFontSize(9);
+    doc.text(kind === "presupuesto" ? "PRESUPUESTO · JESUS DIAZ AUTOMOTORES" : "OPERACIÓN FINALIZADA · JESUS DIAZ AUTOMOTORES", margin, y);
+    doc.setDrawColor(...fuchsia);
+    doc.setLineWidth(0.4);
+    doc.line(margin, y + 3, pageWidth - margin, y + 3);
+    y += 10;
   };
 
-  drawSection("Datos del cliente", [
-    { label: "Nombre", value: values.nombre || "—" },
-    { label: "Telefono", value: values.telefono || "—" },
-    { label: "DNI", value: values.dni || "—" },
-    { label: "Detalles", value: values.detalles || "—" },
+  const section = (title: string, rows: Array<[string, string]>) => {
+    ensureSpace(19);
+    doc.setFillColor(...navy);
+    doc.roundedRect(margin, y, pageWidth - margin * 2, 8, 2, 2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(title, margin + 4, y + 5.5);
+    doc.setTextColor(15, 23, 42);
+    y += 14;
+    rows.forEach(([label, value]) => {
+      const wrapped = doc.splitTextToSize(safeText(value), pageWidth - margin * 2 - 48);
+      wrapped.forEach((line, index) => {
+        ensureSpace(8);
+        doc.setFontSize(9);
+        if (index === 0) {
+          doc.setFont("helvetica", "bold");
+          doc.text(`${label}:`, margin, y);
+        }
+        doc.setFont("helvetica", "normal");
+        doc.text(line, margin + 46, y);
+        y += 4.5;
+      });
+      y += 2;
+    });
+    y += 3;
+  };
+
+  // The source logo is horizontal (roughly 3:1). Keep that aspect ratio so it
+  // is not compressed into a square in the generated document.
+  if (logo) doc.addImage(logo, "PNG", margin, y - 5, 28, 9.2);
+  doc.setTextColor(...navy);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("JESUS DIAZ AUTOMOTORES", margin + (logo ? 34 : 0), y + 2);
+  doc.setTextColor(71, 85, 105);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`Fecha: ${safeText(values.fecha)}`, pageWidth - margin, y + 2, { align: "right" });
+  y += 18;
+
+  doc.setFillColor(...fuchsia);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 17, 3, 3, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text(kind === "presupuesto" ? "PRESUPUESTO" : "OPERACIÓN FINALIZADA", pageWidth / 2, y + 7.5, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const validity = kind === "presupuesto" ? ` · Vigencia: ${safeText((values as PresupuestoValues).vigencia)}` : "";
+  doc.text(`Moneda: ${values.moneda}${validity}`, pageWidth / 2, y + 13, { align: "center" });
+  doc.setTextColor(15, 23, 42);
+  y += 25;
+
+  section("Datos del cliente", [["Nombre", values.nombre], ["Teléfono", values.telefono], ["DNI", values.dni]]);
+  section("Vehículo", [
+    ["Modelo", values.vehModelo], ["Año", values.vehAnio], ["Kilómetros", values.vehKm],
+    ["Precio de venta", moneyValue(values.precioVenta) ? formatMoney(moneyValue(values.precioVenta), values.moneda) : "—"],
   ]);
 
-  drawSection("Vehiculo", [
-    { label: "Modelo", value: values.vehModelo || "—" },
-    { label: "Año", value: values.vehAnio || "—" },
-    { label: "KM", value: values.vehKm || "—" },
-    { label: "Valor de venta", value: parseMoney(values.precioVenta) ? formatMoney(parseMoney(values.precioVenta), values.moneda) : "—" },
+  const cash = moneyValue(values.entregaEfectivo);
+  const tradeIn = moneyValue(values.usadoToma);
+  const financed = values.tomaCredito === "si" ? moneyValue(values.creditoTotal) : 0;
+  const admin = moneyValue(values.gastosAdm);
+  const transfer = moneyValue(values.transferencia);
+  const salePrice = moneyValue(values.precioVenta);
+  const total = salePrice + admin + transfer;
+  const sameCurrency = values.tomaCredito !== "si" || values.creditoMoneda === values.moneda;
+  const balance = sameCurrency ? Math.max(0, total - cash - tradeIn - financed) : null;
+
+  section("Entrega y toma", [
+    ["Efectivo", cash ? formatMoney(cash, values.moneda) : "—"],
+    ["Vehículo en parte de pago", [values.usadoModelo, values.usadoAnio, values.usadoKm].filter(Boolean).join(" · ") || "—"],
+    ["Valor de toma", tradeIn ? formatMoney(tradeIn, values.moneda) : "—"],
+    ["Entrega total", formatMoney(cash + tradeIn, values.moneda)],
   ]);
 
-  const entregaLines: Array<{ label: string; value: string | string[] }> = [];
-  if (entregaEfectivo > 0) entregaLines.push({ label: "Efectivo", value: formatMoney(entregaEfectivo, values.moneda) });
-  if (values.usadoModelo || values.usadoAnio || values.usadoKm || usadoToma > 0) {
-    const usedDetails = [];
-    if (values.usadoModelo) usedDetails.push(`Modelo: ${values.usadoModelo}`);
-    if (values.usadoAnio) usedDetails.push(`Año: ${values.usadoAnio}`);
-    if (values.usadoKm) usedDetails.push(`KM: ${values.usadoKm}`);
-    if (usadoToma > 0) usedDetails.push(`Precio de toma: ${formatMoney(usadoToma, values.moneda)}`);
-    entregaLines.push({ label: "Vehiculo usado (toma)", value: usedDetails });
-  }
-  if (entregaLines.length) {
-    entregaLines.push({ label: "Entrega total", value: formatMoney(entregaTotal, values.moneda) });
-    drawSection("Entrega", entregaLines);
-  }
-
-  if (tomaCredito) {
-    drawSection("Financiacion", [
-      { label: "Total del credito", value: creditoTotal ? formatMoney(creditoTotal, values.moneda) : "—" },
-      { label: "Cantidad de cuotas", value: values.cuotasCant || "—" },
+  if (values.tomaCredito === "si") {
+    section("Financiación", [
+      ["Total financiado", financed ? formatMoney(financed, values.creditoMoneda || values.moneda) : "—"],
+      ["Fecha de inicio", values.creditoFechaInicio],
+      ["Número de cuotas", values.creditoNumeroCuotas || values.cuotasCant],
+      ["Día de vencimiento", values.creditoDiaVencimiento],
+      ["Detalle", values.cuotasCant],
     ]);
   }
 
-  drawSection("Gastos", [
-    { label: "Gastos administrativos", value: gastosAdm ? formatMoney(gastosAdm, values.moneda) : "—" },
-    { label: "Transferencia", value: transferencia ? formatMoney(transferencia, values.moneda) : "—" },
-  ]);
-
-  ensureSpace(45);
-  doc.setDrawColor(17);
-  doc.setLineWidth(0.6);
-  doc.roundedRect(margin, y, pageW - margin * 2, 40, 3, 3);
-  y += 8;
+  ensureSpace(58);
+  doc.setDrawColor(...fuchsia);
+  doc.setLineWidth(0.8);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 48, 3, 3);
+  doc.setTextColor(...navy);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Resumen de operacion", margin + 4, y);
-  y += 7;
+  doc.setFontSize(11);
+  doc.text("Resumen de la operación", margin + 5, y + 8);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-
-  const resumen: Array<[string, number]> = [];
-  if (entregaEfectivo > 0) resumen.push(["Entrega de efectivo", entregaEfectivo]);
-  if (usadoToma > 0) resumen.push(["Toma de auto", usadoToma]);
-  if (creditoTotal > 0) resumen.push(["Financiacion", creditoTotal]);
-  if (gastosAdm > 0) resumen.push([creditoIncluyeExtras ? "Gastos administrativos (incl.)" : "Gastos administrativos", gastosAdm]);
-  if (transferencia > 0) resumen.push([creditoIncluyeExtras ? "Transferencia (incl.)" : "Transferencia", transferencia]);
-
-  resumen.forEach(([label, amount]) => {
-    doc.text(`${label}:`, margin + 4, y);
+  doc.setFontSize(9);
+  const summary: Array<[string, string]> = [["Precio de venta + gastos", formatMoney(total, values.moneda)], ["Entrega (efectivo + toma)", formatMoney(cash + tradeIn, values.moneda)], ["Financiación", formatMoney(financed, values.creditoMoneda || values.moneda)], ["Saldo pendiente", balance === null ? "Requiere conversión de moneda" : formatMoney(balance, values.moneda)]];
+  summary.forEach(([label, amount], index) => {
+    const rowY = y + 15 + index * 7;
+    doc.text(label, margin + 5, rowY);
     doc.setFont("helvetica", "bold");
-    doc.text(formatMoney(amount, values.moneda), pageW - margin - 4, y, { align: "right" });
+    doc.text(amount, pageWidth - margin - 5, rowY, { align: "right" });
     doc.setFont("helvetica", "normal");
-    y += 6;
   });
+  y += 55;
 
-  doc.line(margin + 4, y, pageW - margin - 4, y);
-  y += 7;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("TOTAL OPERACION:", margin + 4, y);
-  doc.text(formatMoney(totalOperacion, values.moneda), pageW - margin - 4, y, { align: "right" });
+  section("Condiciones económicas", [["Gastos administrativos", admin ? formatMoney(admin, values.moneda) : "—"], ["Transferencia", transfer ? formatMoney(transfer, values.moneda) : "—"], ["Detalles", values.detalles]]);
 
-  doc.save(`presupuesto_${sanitizeFileName(values.nombre || "cliente")}_${values.fecha.replaceAll("-", "")}.pdf`);
+  const noteValues = kind === "presupuesto" ? (values as PresupuestoValues) : null;
+  if (noteValues?.condiciones || noteValues?.notas || values.detalles) section("Notas y condiciones", [["Condiciones", noteValues?.condiciones ?? ""], ["Notas", noteValues?.notas || values.detalles]]);
+  footer();
+  const prefix = kind === "presupuesto" ? "presupuesto" : "operacion_finalizada";
+  doc.save(`${prefix}_${sanitizeFileName(values.nombre || "cliente")}_${values.fecha.replaceAll("-", "")}.pdf`);
+}
+
+export async function generatePresupuestoPdf(values: PresupuestoValues) {
+  return generateSalesPdf(values, "presupuesto");
+}
+
+export async function generateOperacionFinalizadaPdf(values: OperacionFinalizadaValues) {
+  return generateSalesPdf(values, "operacion");
 }

@@ -8,9 +8,12 @@ import {
   FileSpreadsheet,
   FileText,
   Home,
+  Inbox,
   LogOut,
   Menu,
+  Search,
   ShieldAlert,
+  Users,
   X,
 } from "lucide-react";
 import { logout } from "@/lib/auth";
@@ -25,6 +28,9 @@ const navigation = [
   { to: "/ventas", label: "Ventas", icon: FileSpreadsheet },
   { to: "/ventas/seguimientos", label: "Seguimientos", icon: ClipboardList },
   { to: "/ventas/documentos", label: "Documentos", icon: FileText },
+  { to: "/leads", label: "Leads", icon: Inbox },
+  { to: "/ventas/clientes", label: "Clientes", icon: Users },
+  { to: "/consultas", label: "Consultas", icon: Search },
   { to: "/infracciones", label: "Infracciones", icon: ShieldAlert },
 ];
 

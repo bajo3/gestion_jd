@@ -65,6 +65,7 @@ export async function generateAutorizacionPdf(values: AutorizacionFormValues) {
   doc.line(20, 138, 90, 138);
   doc.line(120, 138, 190, 138);
 
+  doc.text(values.propietarioNombre || values.titular, 55, 136, { align: "center" });
   doc.text("Propietario Actual", 35, 143);
   doc.text(mandatarioNombre, 130, 136);
   doc.text("Mandataria Interviniente", 130, 143);

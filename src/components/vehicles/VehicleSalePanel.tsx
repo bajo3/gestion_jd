@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CheckCircle2, Circle, ClipboardList, FileText, Receipt, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, CheckCircle2, Circle, ClipboardList, FileText, Receipt, ShieldCheck, WalletCards } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +13,9 @@ type VehicleSalePanelProps = {
 const saleDocuments = [
   { to: "/compra-venta", title: "Compra y Venta", icon: FileText },
   { to: "/recibo", title: "Recibo", icon: Receipt },
-  { to: "/presupuesto", title: "Presupuesto", icon: WalletCards },
+  { to: "/presupuesto-cliente", title: "Presupuesto para cliente", icon: WalletCards },
+  { to: "/operacion-finalizada", title: "Operación finalizada", icon: CheckCircle2 },
+  { to: "/datero", title: "Datero", icon: ClipboardList },
   { to: "/formulario-cliente", title: "Formulario Cliente", icon: ClipboardList },
   { to: "/autorizacion-conduccion", title: "Autorizacion", icon: ShieldCheck },
 ];
@@ -52,14 +54,24 @@ export function VehicleSalePanel({ vehicle, hasPostSaleAlert }: VehicleSalePanel
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Venta</p>
-            <h3 className="mt-1 text-lg font-semibold text-slate-950">Crear venta desde auto</h3>
+            <h3 className="mt-1 text-lg font-semibold text-slate-950">Registrar venta desde este auto</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Accesos rapidos a documentos usando este auto como referencia interna.
+              El auto se mantiene seleccionado mientras cargás al cliente y confirmás el cierre.
             </p>
           </div>
           <Badge className="w-fit border-slate-200 bg-slate-50 text-slate-700">
             {completedItems}/{checklist.length} listo
           </Badge>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-fuchsia-700">Atajo recomendado</p>
+            <p className="mt-1 text-sm text-fuchsia-950">Cargá los datos del comprador y después confirmá la venta. No hace falta volver a buscar este auto.</p>
+          </div>
+          <Link to={buildDocumentUrl("/datero", vehicle)} className="shrink-0">
+            <Button><span>Cargar cliente y avanzar</span><ArrowRight className="ml-2 h-4 w-4" /></Button>
+          </Link>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -68,7 +80,9 @@ export function VehicleSalePanel({ vehicle, hasPostSaleAlert }: VehicleSalePanel
           ))}
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div>
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Documentos opcionales</p>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {saleDocuments.map((document) => {
             const Icon = document.icon;
             return (
@@ -83,11 +97,12 @@ export function VehicleSalePanel({ vehicle, hasPostSaleAlert }: VehicleSalePanel
               </Link>
             );
           })}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Link to={buildDocumentUrl("/compra-venta", vehicle)}>
-            <Button>Iniciar venta</Button>
+          <Link to={buildDocumentUrl("/operacion-finalizada", vehicle)}>
+            <Button>Finalizar con cliente existente</Button>
           </Link>
           <Link to={`/autos/${vehicle.id}/editar`}>
             <Button variant="outline">Completar datos</Button>
