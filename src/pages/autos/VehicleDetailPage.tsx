@@ -57,15 +57,19 @@ export function VehicleDetailPage() {
           <VehicleSalePanel vehicle={vehicle} hasPostSaleAlert={hasPostSaleAlert} />
           <FileUploader
             onAdd={async (pending) => {
-              const uploadedFile = await uploadVehicleFile({
-                vehicleId: vehicle.id,
-                file: pending.file,
-                fileName: pending.file.name,
-                fileType: pending.file.type || "application/octet-stream",
-                category: pending.category,
-                notes: pending.notes,
-              });
-              await attachFilesToVehicle(vehicle.id, [uploadedFile]);
+              const uploadedFiles = await Promise.all(
+                pending.files.map((file) =>
+                  uploadVehicleFile({
+                    vehicleId: vehicle.id,
+                    file,
+                    fileName: file.name,
+                    fileType: file.type || "application/octet-stream",
+                    category: pending.category,
+                    notes: pending.notes,
+                  }),
+                ),
+              );
+              await attachFilesToVehicle(vehicle.id, uploadedFiles);
               refreshVehicle();
             }}
           />

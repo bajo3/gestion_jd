@@ -1,5 +1,5 @@
 import type { DateroFormValues } from "@/types/forms";
-import { createPdf, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 export async function generateDateroPdf(values: DateroFormValues) {
   const doc = createPdf();
@@ -79,13 +79,11 @@ export async function generateDateroPdf(values: DateroFormValues) {
   };
 
   const logo = await loadImageDataUrl("/logo-jd-negro.png");
-  if (logo) {
-    doc.addImage(logo, "PNG", L, 10, 22, 10);
-  }
+  drawPdfLogo(doc, logo, L, 8, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text("DATOS PARA LA TRANSFERENCIA DE UNA UNIDAD", 105, 18, { align: "center" });
-  y = 28;
+  doc.text("DATOS PARA LA TRANSFERENCIA DE UNA UNIDAD", 105, 26, { align: "center" });
+  y = 36;
 
   section("Datos del Comprador");
   field("Apellido y Nombre", values.nombre);
@@ -100,6 +98,7 @@ export async function generateDateroPdf(values: DateroFormValues) {
   field("Telefono", values.telefono);
   field("Celular", values.celular);
   field("Email", values.email);
+  field("Instagram", values.instagram);
   field("CUIL/CUIT", values.cuil);
   field("Condicion Fiscal", values.condicionFiscal);
   field("Estado Civil", values.estadoCivil);
@@ -135,5 +134,5 @@ export async function generateDateroPdf(values: DateroFormValues) {
   doc.text("Generado por Jesus Diaz Automotores", 105, 285, { align: "center" });
   doc.setTextColor(0);
 
-  doc.save(`datero_${sanitizeFileName(values.nombre || "sin_nombre")}.pdf`);
+  return savePdf(doc, `datero_${sanitizeFileName(values.nombre || "sin_nombre")}.pdf`);
 }

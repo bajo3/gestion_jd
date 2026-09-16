@@ -1,10 +1,12 @@
-import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { generateTestDrivePdf } from "@/pdf/testDrivePdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { TestDriveFormValues } from "@/types/forms";
 import { DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -58,6 +60,13 @@ function CheckField({
 
 export function TestDrivePage() {
   const [values, form] = useObjectState(initialState);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<TestDriveFormValues>("testDrive");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Test Drive" description="Formulario operativo y acuerdo de exoneracion de responsabilidad.">
@@ -119,7 +128,11 @@ export function TestDrivePage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={() => generateTestDrivePdf(values)}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="testDrive"
+          values={values}
+          onGenerate={() => generateTestDrivePdf(values)}
+        />
       </div>
     </DocumentPage>
   );

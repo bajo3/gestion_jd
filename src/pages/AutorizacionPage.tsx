@@ -1,10 +1,11 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { generateAutorizacionPdf } from "@/pdf/autorizacionPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { AutorizacionFormValues } from "@/types/forms";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
@@ -61,6 +62,13 @@ export function AutorizacionPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, workflow.client, workflow.operation, workflow.saved, workflow.vehicle]);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<AutorizacionFormValues>("autorizacion");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Autorizacion de Conduccion" description="Permiso de autorizacion para circular y constancia asociada.">
@@ -124,7 +132,14 @@ export function AutorizacionPage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button onClick={async () => { await workflow.save(values as unknown as Record<string, unknown>, "generado"); await generateAutorizacionPdf(values); }}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="autorizacion"
+          values={values}
+          onGenerate={async () => {
+            await workflow.save(values as unknown as Record<string, unknown>, "generado");
+            return generateAutorizacionPdf(values);
+          }}
+        />
       </div>
     </DocumentPage>
   );

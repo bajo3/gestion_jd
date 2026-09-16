@@ -10,6 +10,8 @@ import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { DateroFormValues } from "@/types/forms";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
@@ -26,6 +28,7 @@ const initialState: DateroFormValues = {
   telefono: "",
   celular: "",
   email: "",
+  instagram: "",
   cuil: "",
   condicionFiscal: "",
   estadoCivil: "",
@@ -73,6 +76,13 @@ export function DateroPage() {
     }
   };
 
+  useEffect(() => {
+    const draft = consumeDocumentDraft<DateroFormValues>("datero");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
+
   return (
     <DocumentPage title="Datero" description="Formulario para transferencia con datos del comprador, operación y auto entregado.">
       <DocumentContextBar client={workflow.client} operation={workflow.operation} />
@@ -93,6 +103,7 @@ export function DateroPage() {
             ["telefono", "Telefono"],
             ["celular", "Celular"],
             ["email", "Email"],
+            ["instagram", "Instagram"],
             ["cuil", "CUIL/CUIT"],
             ["condicionFiscal", "Condicion fiscal"],
             ["estadoCivil", "Estado civil"],
@@ -174,7 +185,7 @@ export function DateroPage() {
       <div className="flex flex-wrap justify-end gap-3">
         <Button variant="outline" onClick={() => save(false)}>{savedContext ? "Guardar cambios" : "Guardar cliente y operación"}</Button>
         {params.get("operationId") ? <Button variant="secondary" onClick={() => save(true)}>Guardar nueva operación</Button> : null}
-        <Button onClick={() => generateDateroPdf(values)}>Generar Resumen</Button>
+        <GenerateDocumentButton documentType="datero" values={values} onGenerate={() => generateDateroPdf(values)} />
       </div>
       {savedContext ? <div className={`rounded-2xl border p-4 text-sm ${savedContext.warning ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}><strong>{savedContext.warning ? "Borrador local." : "Cliente guardado."}</strong> Ya podés completar todos los documentos con los mismos datos.{savedContext.warning ? <p className="mt-1">{savedContext.warning} Reintentá guardar cuando Supabase esté disponible.</p> : null}<div className="mt-3 flex flex-wrap gap-2"><Link to={`/recibo?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Abrir recibo</Button></Link><Link to={`/presupuesto-cliente?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Preparar presupuesto</Button></Link><Link to={`/operacion-finalizada?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Ir a operación finalizada</Button></Link></div></div> : null}
     </DocumentPage>

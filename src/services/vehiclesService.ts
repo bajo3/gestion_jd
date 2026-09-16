@@ -1,6 +1,7 @@
 import { readStorage, writeStorage } from "@/lib/storage";
 import { generateId } from "@/lib/utils";
 import { syncCommercialAlertsForVehicle } from "@/services/commercialAlertsService";
+import { logVehicleEvent, recordVehicleChanges, vehicleFromEventSource } from "@/services/vehicleEventsService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import type { Vehicle, VehicleFile, VehicleInput } from "@/types/vehicles";
 
@@ -140,6 +141,16 @@ export async function createVehicle(input: VehicleInput) {
 
   const localVehicles = readLocalVehicles();
   saveLocalVehicles([vehicle, ...localVehicles]);
+
+  await logVehicleEvent({
+    vehicleId: vehicle.id,
+    type: "created",
+    summary: `Alta de ${[vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(" ") || "vehiculo"}`,
+    detail: vehicle.licensePlate ? `Patente ${vehicle.licensePlate}` : undefined,
+    changes: [],
+    occurredAt: vehicle.createdAt,
+  });
+
   await syncCommercialAlertsForVehicle(vehicle);
   return vehicle;
 }
@@ -152,9 +163,9 @@ export async function updateVehicle(id: string, input: VehicleInput) {
   const updatedVehicle: Vehicle = {
     ...input,
     id,
-    createdAt: readLocalVehicles().find((vehicle) => vehicle.id === id)?.createdAt ?? new Date().toISOString(),
+    createdAt: currentVehicle?.createdAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    files: readLocalVehicles().find((vehicle) => vehicle.id === id)?.files ?? [],
+    files: currentVehicle?.files ?? [],
   };
 
   if (isSupabaseConfigured && supabase) {
@@ -192,10 +203,15 @@ export async function updateVehicle(id: string, input: VehicleInput) {
     }
   }
 
-  const localVehicles = readLocalVehicles().map((vehicle) =>
-    vehicle.id === id ? updatedVehicle : vehicle,
-  );
+  const localVehicles = readLocalVehicles().some((vehicle) => vehicle.id === id)
+    ? readLocalVehicles().map((vehicle) => (vehicle.id === id ? updatedVehicle : vehicle))
+    : [updatedVehicle, ...readLocalVehicles()];
   saveLocalVehicles(localVehicles);
+
+  await recordVehicleChanges(id, currentVehicle ? vehicleFromEventSource(currentVehicle) : null, input, {
+    occurredAt: updatedVehicle.updatedAt,
+  });
+
   await syncCommercialAlertsForVehicle(updatedVehicle);
   return updatedVehicle;
 }
@@ -229,9 +245,27 @@ export async function attachFilesToVehicle(id: string, files: VehicleFile[]) {
       ),
     ).catch(() => undefined);
   }
+
+  if (files.length) {
+    await logVehicleEvent({
+      vehicleId: id,
+      type: "file_added",
+      summary:
+        files.length === 1
+          ? `Se adjunto ${files[0].fileName}`
+          : `Se adjuntaron ${files.length} documentos`,
+      detail: files.map((file) => file.fileName).join(", "),
+      changes: [],
+      occurredAt: new Date().toISOString(),
+    });
+  }
 }
 
 export async function deleteVehicleFile(vehicleId: string, fileId: string) {
+  const removedFile = readLocalVehicles()
+    .find((vehicle) => vehicle.id === vehicleId)
+    ?.files.find((file) => file.id === fileId);
+
   const localVehicles = readLocalVehicles().map((vehicle) =>
     vehicle.id === vehicleId
       ? {
@@ -255,4 +289,12 @@ export async function deleteVehicleFile(vehicleId: string, fileId: string) {
       // fallback local already applied
     }
   }
+
+  await logVehicleEvent({
+    vehicleId,
+    type: "file_removed",
+    summary: removedFile ? `Se elimino ${removedFile.fileName}` : "Se elimino un documento",
+    changes: [],
+    occurredAt: new Date().toISOString(),
+  });
 }

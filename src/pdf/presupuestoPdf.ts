@@ -1,6 +1,6 @@
 import { parseNumberish } from "@/lib/utils";
 import type { OperacionFinalizadaValues, PresupuestoValues } from "@/types/salesDocuments";
-import { createPdf, loadImageDataUrl, sanitizeFileName } from "./common";
+import { createPdf, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
 type PdfKind = "presupuesto" | "operacion";
 
@@ -163,7 +163,7 @@ async function generateSalesPdf(values: PresupuestoValues | OperacionFinalizadaV
   if (noteValues?.condiciones || noteValues?.notas || values.detalles) section("Notas y condiciones", [["Condiciones", noteValues?.condiciones ?? ""], ["Notas", noteValues?.notas || values.detalles]]);
   footer();
   const prefix = kind === "presupuesto" ? "presupuesto" : "operacion_finalizada";
-  doc.save(`${prefix}_${sanitizeFileName(values.nombre || "cliente")}_${values.fecha.replaceAll("-", "")}.pdf`);
+  return savePdf(doc, `${prefix}_${sanitizeFileName(values.nombre || "cliente")}_${values.fecha.replaceAll("-", "")}.pdf`);
 }
 
 export async function generatePresupuestoPdf(values: PresupuestoValues) {

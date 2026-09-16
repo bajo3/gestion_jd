@@ -1,10 +1,11 @@
 import { useEffect, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
 type ClientState = {
@@ -42,6 +43,13 @@ export function FormularioClientePage() {
   useEffect(() => {
     if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<ClientState>) });
   }, [form, workflow.saved]);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<Pick<ClientState, "dni" | "cuil" | "situacionLaboral">>("formularioCliente");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Formulario Cliente" description="Datos basicos, situacion laboral y documentacion de DNI para resumen interno.">
@@ -98,8 +106,10 @@ export function FormularioClientePage() {
       </FormSection>
 
       <div className="flex justify-end">
-        <Button
-          onClick={() =>
+        <GenerateDocumentButton
+          documentType="formularioCliente"
+          values={{ dni: values.dni, cuil: values.cuil, situacionLaboral: values.situacionLaboral }}
+          onGenerate={() =>
             workflow.save({ dni: values.dni, cuil: values.cuil, situacionLaboral: values.situacionLaboral }, "generado").then(() => generateFormularioClientePdf({
               dni: values.dni,
               cuil: values.cuil,
@@ -108,9 +118,7 @@ export function FormularioClientePage() {
               dniDorso: values.dniDorso,
             }))
           }
-        >
-          Generar Resumen
-        </Button>
+        />
       </div>
     </DocumentPage>
   );

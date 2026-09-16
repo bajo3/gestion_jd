@@ -8,6 +8,8 @@ import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { generatePresupuestoPdf } from "@/pdf/presupuestoPdf";
+import { archiveDocument } from "@/services/documentsService";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import { emptyPresupuestoValues, type PresupuestoValues } from "@/types/salesDocuments";
 import { DocumentContextBar, DocumentPage, FormGrid, FormSection } from "./documentUtils";
 
@@ -24,6 +26,12 @@ export function PresupuestoPage() {
 
   useEffect(() => {
     if (hydrated.current) return;
+    const draft = consumeDocumentDraft<PresupuestoValues>("presupuesto");
+    if (draft) {
+      hydrated.current = true;
+      form.replace({ ...initialState, ...draft });
+      return;
+    }
     const source = (workflow.operation?.data ?? {}) as Partial<PresupuestoValues> & { ppaModelo?: string; ppaAnio?: string };
     const saved = (workflow.saved?.data ?? {}) as Partial<PresupuestoValues>;
     if (!workflow.client && !workflow.operation && !workflow.saved) return;
@@ -60,7 +68,19 @@ export function PresupuestoPage() {
 
   const generate = async () => {
     const saved = await save("generado");
-    if (saved || !workflow.hasContext) await generatePresupuestoPdf(values);
+    if (!saved && workflow.hasContext) return;
+    const pdf = await generatePresupuestoPdf(values);
+    try {
+      const archived = await archiveDocument({
+        documentType: "presupuesto",
+        values: values as unknown as Record<string, unknown>,
+        fileName: pdf.fileName,
+        blob: pdf.blob,
+      });
+      if (!archived.persisted) setMessage("PDF generado; archivado solo en este dispositivo.");
+    } catch {
+      setMessage("PDF generado, pero no se pudo archivar en Consultas.");
+    }
   };
 
   const setCreditEnabled = (value: "si" | "no") => {

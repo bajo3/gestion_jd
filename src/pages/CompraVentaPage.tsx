@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CarFront, CheckCircle2, FileText, PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +16,8 @@ import { StatusBadge } from "@/components/vehicles/StatusBadge";
 import { attachFilesToVehicle, deleteVehicleFile, updateVehicle } from "@/services/vehiclesService";
 import { uploadVehicleFile } from "@/services/filesService";
 import { generateCompraVentaPdf } from "@/pdf/compraVentaPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { CompraVentaFormValues } from "@/types/forms";
 import type { Vehicle, VehicleFile } from "@/types/vehicles";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
@@ -33,6 +36,7 @@ const initialState: CompraVentaFormValues = {
   nMotor: "",
   nChasis: "",
   observaciones: "",
+  sinGarantia: false,
 };
 
 export function CompraVentaPage() {
@@ -99,6 +103,13 @@ export function CompraVentaPage() {
       setVehicleSaving(false);
     }
   }
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<CompraVentaFormValues>("compraVenta");
+    if (draft) {
+      form.replace({ ...initialState, ...draft });
+    }
+  }, [form]);
 
   return (
     <DocumentPage title="Compra y Venta" description="Boleto de compra venta migrado desde la version original.">
@@ -198,6 +209,10 @@ export function CompraVentaPage() {
         <FormField label="Observaciones">
           <Textarea value={values.observaciones} onChange={(event) => form.set("observaciones", event.target.value)} />
         </FormField>
+        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+          <Checkbox checked={values.sinGarantia} onChange={(event) => form.set("sinGarantia", event.target.checked)} />
+          Sin garantia
+        </label>
       </FormSection>
 
       {vehicle ? (
@@ -206,18 +221,18 @@ export function CompraVentaPage() {
             <h2 className="text-xl font-bold text-slate-950">Documentos del auto</h2>
             <p className="mt-1 text-sm text-slate-500">Adjuntá cédula, título, 08, informe, boleto u otro archivo directamente al historial de {vehicle.brand} {vehicle.model}.</p>
           </div>
-          <FileUploader
-            onAdd={async (pending) => {
-              const uploadedFile = await uploadVehicleFile({
-                vehicleId: vehicle.id,
-                file: pending.file,
-                fileName: pending.file.name,
-                fileType: pending.file.type || "application/octet-stream",
-                category: pending.category,
-                notes: pending.notes,
-              });
-              await attachFilesToVehicle(vehicle.id, [uploadedFile]);
-              setAddedVehicleFiles((current) => [uploadedFile, ...current]);
+           <FileUploader
+             onAdd={async (pending) => {
+               const uploadedFiles = await Promise.all(pending.files.map((file) => uploadVehicleFile({
+                 vehicleId: vehicle.id,
+                 file,
+                 fileName: file.name,
+                 fileType: file.type || "application/octet-stream",
+                 category: pending.category,
+                 notes: pending.notes,
+               })));
+               await attachFilesToVehicle(vehicle.id, uploadedFiles);
+               setAddedVehicleFiles((current) => [...uploadedFiles, ...current]);
             }}
           />
           <VehicleFiles
@@ -234,7 +249,14 @@ export function CompraVentaPage() {
       ) : null}
 
       <div className="flex justify-end">
-        <Button onClick={async () => { await workflow.save(values as unknown as Record<string, unknown>, "generado"); await generateCompraVentaPdf(values); }}>Generar Resumen</Button>
+        <GenerateDocumentButton
+          documentType="compraVenta"
+          values={values}
+          onGenerate={async () => {
+            await workflow.save(values as unknown as Record<string, unknown>, "generado");
+            return generateCompraVentaPdf(values);
+          }}
+        />
       </div>
     </DocumentPage>
   );

@@ -24,8 +24,11 @@ import { VentasDashboardPage } from "@/pages/ventas/VentasDashboardPage";
 import { VentasDocumentosPage } from "@/pages/ventas/VentasDocumentosPage";
 import { VentasSeguimientosPage } from "@/pages/ventas/VentasSeguimientosPage";
 import { InfraccionesPage } from "@/pages/InfraccionesPage";
-import { ConsultasPage } from "@/pages/ConsultasPage";
+import { PendientesPage } from "@/pages/PendientesPage";
 import { LeadsPage } from "@/pages/LeadsPage";
+import { ConsultasPage } from "@/pages/ConsultasPage";
+import { ListaPreciosPage } from "@/pages/precios/ListaPreciosPage";
+import { CatalogoPage } from "@/pages/catalogo/CatalogoPage";
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -44,6 +47,7 @@ function ContextualDocument({ children }: { children: ReactNode }) {
 export function Router() {
   return (
     <Routes>
+      <Route path="/catalogo" element={<CatalogoPage />} />
       <Route
         path="/login"
         element={isAuthenticated() ? <Navigate to="/" replace /> : <LoginPage />}
@@ -61,7 +65,9 @@ export function Router() {
         <Route path="/ventas/clientes/:id" element={<ClienteDetallePage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/consultas" element={<ConsultasPage />} />
+        <Route path="/lista-precios" element={<ListaPreciosPage />} />
         <Route path="/infracciones" element={<InfraccionesPage />} />
+        <Route path="/pendientes" element={<PendientesPage />} />
         <Route path="/compra-venta" element={<ContextualDocument><CompraVentaPage /></ContextualDocument>} />
         <Route path="/autorizacion-conduccion" element={<ContextualDocument><AutorizacionPage /></ContextualDocument>} />
         <Route path="/datero" element={<ContextualDocument><DateroPage /></ContextualDocument>} />

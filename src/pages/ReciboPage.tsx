@@ -10,7 +10,9 @@ import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { parseNumberish } from "@/lib/utils";
 import { amountToLetters, generateReciboPdf } from "@/pdf/reciboPdf";
+import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { commitReceiptNumber, getNextReceiptNumber } from "@/services/receiptCounterService";
+import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { ReciboFormValues } from "@/types/forms";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
@@ -53,6 +55,13 @@ export function ReciboPage() {
     if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<typeof initialState>) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow.saved]);
+
+  useEffect(() => {
+    const draft = consumeDocumentDraft<ReciboFormValues>("recibo");
+    if (draft) {
+      form.replace({ ...initialState, ...draft, reciboNro: draft.reciboNro ?? initialState.reciboNro });
+    }
+  }, [form]);
 
   useEffect(() => {
     const amount = parseNumberish(values.monto);
@@ -142,19 +151,20 @@ export function ReciboPage() {
       </FormSection>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <Button
-          onClick={async () => {
+        <GenerateDocumentButton
+          documentType="recibo"
+          values={values}
+          onGenerate={async () => {
             const result = await workflow.save(values as unknown as Record<string, unknown>, "generado", documentId ?? undefined, { newDocument: !documentId });
-            await generateReciboPdf(values);
+            const pdf = await generateReciboPdf(values);
             if (result?.document) setDocumentId(result.document.id);
             if (!generated && !documentId) {
               commitReceiptNumber();
               setGenerated(true);
             }
+            return pdf;
           }}
-        >
-          Generar Resumen
-        </Button>
+        />
         <Button variant="outline" onClick={() => { const next = new URLSearchParams(); ["clientId", "operationId", "vehicleId"].forEach((key) => { const value = params.get(key); if (value) next.set(key, value); }); next.set("newDocument", String(Date.now())); navigate(`/recibo?${next.toString()}`); }}>
           Nuevo recibo
         </Button>

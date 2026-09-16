@@ -13,12 +13,15 @@ import {
   Menu,
   Search,
   ShieldAlert,
+  StickyNote,
+  Tag,
   Users,
   X,
 } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { VehicleAssistant } from "@/components/assistant/VehicleAssistant";
 
 const SIDEBAR_KEY = "jd-sidebar-collapsed";
 
@@ -31,7 +34,9 @@ const navigation = [
   { to: "/leads", label: "Leads", icon: Inbox },
   { to: "/ventas/clientes", label: "Clientes", icon: Users },
   { to: "/consultas", label: "Consultas", icon: Search },
+  { to: "/lista-precios", label: "Lista de precios", icon: Tag },
   { to: "/infracciones", label: "Infracciones", icon: ShieldAlert },
+  { to: "/pendientes", label: "Pendientes", icon: StickyNote },
 ];
 
 function isPathInSection(pathname: string, paths: string[]) {
@@ -219,6 +224,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <VehicleAssistant />
     </div>
   );
 }
