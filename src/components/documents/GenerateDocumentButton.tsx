@@ -18,7 +18,7 @@ type GenerateDocumentButtonProps = {
   onGenerate: () => Promise<GeneratedPdf>;
   label?: string;
   /** Se ejecuta despues de generar el PDF (ej: cargar cliente y auto). */
-  afterGenerate?: () => Promise<Pick<SaleSyncResult, "messages" | "links">>;
+  afterGenerate?: () => Promise<Pick<SaleSyncResult, "messages" | "warnings" | "links">>;
 };
 
 /**
@@ -34,7 +34,7 @@ export function GenerateDocumentButton({
 }: GenerateDocumentButtonProps) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
-  const [sync, setSync] = useState<Pick<SaleSyncResult, "messages" | "links"> | null>(null);
+  const [sync, setSync] = useState<Pick<SaleSyncResult, "messages" | "warnings" | "links"> | null>(null);
 
   const handleClick = async () => {
     if (busy) return;
@@ -71,7 +71,8 @@ export function GenerateDocumentButton({
           setSync(await afterGenerate());
         } catch (error) {
           setSync({
-            messages: [error instanceof Error ? error.message : "No se pudo cargar el cliente ni el auto."],
+            messages: [],
+            warnings: [error instanceof Error ? error.message : "No se pudo cargar el cliente ni el auto."],
             links: [],
           });
         }
@@ -112,7 +113,17 @@ export function GenerateDocumentButton({
           ) : null}
         </p>
       ) : null}
-      {sync?.messages.length ? (
+      {sync?.warnings.length ? (
+        <div className="max-w-md rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-right text-xs font-medium text-red-700">
+          {sync.warnings.map((warning) => (
+            <p key={warning} className="flex items-start justify-end gap-1.5">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {warning}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      {sync && (sync.messages.length || sync.links.length) ? (
         <div className="max-w-md space-y-0.5 text-right text-xs text-slate-600">
           {sync.messages.map((message) => (
             <p key={message}>{message}</p>

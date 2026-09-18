@@ -17,6 +17,8 @@ export type SaleSyncLink = { to: string; label: string };
 
 export type SaleSyncResult = {
   messages: string[];
+  /** Datos que faltan: se muestran en rojo para que los carguen. */
+  warnings: string[];
   links: SaleSyncLink[];
   clientId?: string;
   operationId?: string;
@@ -216,10 +218,11 @@ export async function syncDateroGenerated(
   context: { operationId?: string; vehicleId?: string; documentId?: string },
 ): Promise<SaleSyncResult> {
   const messages: string[] = [];
+  const warnings: string[] = [];
   const links: SaleSyncLink[] = [];
 
   if (!normalizeDni(values.dni)) {
-    return { messages: ["Falta el DNI: el cliente no se guardo automaticamente."], links };
+    return { messages, warnings: ["Falta el DNI: el cliente no se guardo automaticamente."], links };
   }
 
   const vehicles = await listVehicles();
@@ -242,18 +245,21 @@ export async function syncDateroGenerated(
   });
 
   messages.push(`Cliente ${saved.client.nombre} guardado en Clientes.`);
-  if (saved.warning || document.warning) messages.push(`Quedo como borrador local: ${saved.warning || document.warning}`);
+  if (saved.warning || document.warning) warnings.push(`Quedo como borrador local: ${saved.warning || document.warning}`);
   if (sold?.message) messages.push(sold.message);
 
   const tradeIn = await registerTradeIn(sold ? [...vehicles, sold.vehicle] : vehicles, values);
   if (tradeIn) messages.push(tradeIn);
+  if (!text(values.celular) && !text(values.telefono)) {
+    warnings.push("Falta el telefono del comprador: sin el no se crea la postventa.");
+  }
 
   if (saved.operation.status !== "finalizada") {
     messages.push("La venta se cierra al generar el Compra y Venta o desde Operacion finalizada.");
     links.push(operationLink(saved.client.id, saved.operation.id));
   }
 
-  return { messages, links, clientId: saved.client.id, operationId: saved.operation.id, document: document.document };
+  return { messages, warnings, links, clientId: saved.client.id, operationId: saved.operation.id, document: document.document };
 }
 
 /**
@@ -265,11 +271,12 @@ export async function syncCompraVentaGenerated(
   context: { operationId?: string; vehicleId?: string; documentSaved: boolean },
 ): Promise<SaleSyncResult> {
   const messages: string[] = [];
+  const warnings: string[] = [];
   const links: SaleSyncLink[] = [];
   const dni = text(values.numeroDoc);
 
   if (!normalizeDni(dni)) {
-    return { messages: ["Falta el DNI: el cliente y la venta no se cargaron automaticamente."], links };
+    return { messages, warnings: ["Falta el DNI: el cliente y la venta no se cargaron automaticamente."], links };
   }
 
   const saleDate = isoDate(values.fecha) || today();
@@ -340,7 +347,7 @@ export async function syncCompraVentaGenerated(
   }
 
   messages.push(`Cliente ${saved.client.nombre} guardado en Clientes.`);
-  if (saved.warning) messages.push(`Quedo como borrador local: ${saved.warning}`);
+  if (saved.warning) warnings.push(`Quedo como borrador local: ${saved.warning}`);
   if (sold?.message) messages.push(sold.message);
 
   const vehicleId = saved.operation.vehicleId || sold?.vehicle.id;
@@ -356,13 +363,13 @@ export async function syncCompraVentaGenerated(
   if (saved.operation.status === "finalizada") {
     messages.push("La operacion ya estaba finalizada.");
   } else if (!vehicleId) {
-    messages.push("Falta la patente: cerra la venta desde Operacion finalizada.");
+    warnings.push("Falta la patente: cerra la venta desde Operacion finalizada.");
     links.push(finishLater);
   } else if (!(salePrice > 0)) {
-    messages.push("Falta el precio: cerra la venta desde Operacion finalizada.");
+    warnings.push("Falta el precio: cerra la venta desde Operacion finalizada.");
     links.push(finishLater);
   } else if (hasCredit && !installments) {
-    messages.push("Venta con credito sin cantidad de cuotas: cargalas en Operacion finalizada para cerrarla.");
+    warnings.push("Venta con credito sin cantidad de cuotas: cargalas en Operacion finalizada para cerrarla.");
     links.push(finishLater);
   } else {
     try {
@@ -388,14 +395,18 @@ export async function syncCompraVentaGenerated(
             : "Venta finalizada: el auto quedo como vendido en el historial.",
         );
       } else {
-        messages.push("Sin conexion con la base: la venta no se pudo finalizar todavia.");
+        warnings.push("Sin conexion con la base: la venta no se pudo finalizar todavia.");
         links.push(finishLater);
       }
     } catch (error) {
-      messages.push(error instanceof Error ? error.message : "No se pudo finalizar la venta.");
+      warnings.push(error instanceof Error ? error.message : "No se pudo finalizar la venta.");
       links.push(finishLater);
     }
   }
 
-  return { messages, links, clientId: saved.client.id, operationId: saved.operation.id };
+  if (!dateroValues.celular && !dateroValues.telefono) {
+    warnings.push("Falta el telefono del comprador: sin el no se crea la postventa. Cargalo en el auto o en el cliente.");
+  }
+
+  return { messages, warnings, links, clientId: saved.client.id, operationId: saved.operation.id };
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Calculator, CheckCircle2, Clock, FileText, WalletCards, Users, CarFront } from "lucide-react";
 import { MetricCard } from "@/components/shared/MetricCard";
+import { MissingSaleDataList } from "@/components/vehicles/MissingSaleDataAlert";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,6 +131,8 @@ export function VentasDashboardPage() {
           </>
         }
       />
+
+      <MissingSaleDataList vehicles={vehicles} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { VehicleDetail } from "@/components/vehicles/VehicleDetail";
 import { FileUploader } from "@/components/vehicles/FileUploader";
 import { VehicleFiles } from "@/components/vehicles/VehicleFiles";
+import { VehicleMissingSaleData } from "@/components/vehicles/MissingSaleDataAlert";
 import { VehicleSalePanel } from "@/components/vehicles/VehicleSalePanel";
 import { VehicleTimeline } from "@/components/vehicles/VehicleTimeline";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ export function VehicleDetailPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="space-y-6">
+          <VehicleMissingSaleData vehicle={vehicle} />
           <VehicleDetail vehicle={vehicle} />
           <VehicleSalePanel vehicle={vehicle} hasPostSaleAlert={hasPostSaleAlert} />
           <FileUploader

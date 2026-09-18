@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   CarFront,
@@ -21,6 +21,8 @@ import {
 import { logout } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { listVehiclesWithMissingSaleData } from "@/lib/saleMissingData";
+import { listVehicles } from "@/services/vehiclesService";
 import { VehicleAssistant } from "@/components/assistant/VehicleAssistant";
 
 const SIDEBAR_KEY = "jd-sidebar-collapsed";
@@ -63,6 +65,20 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "1");
   const location = useLocation();
   const navigate = useNavigate();
+  const [missingSales, setMissingSales] = useState(0);
+
+  // Contador rojo en "Ventas": autos vendidos con datos sin cargar.
+  useEffect(() => {
+    let active = true;
+    listVehicles()
+      .then((vehicles) => {
+        if (active) setMissingSales(listVehiclesWithMissingSaleData(vehicles).length);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [location.pathname]);
 
   const currentLabel = useMemo(
     () => {
@@ -151,6 +167,17 @@ export function AppShell() {
               >
                 {item.label}
               </span>
+              {item.to === "/ventas" && missingSales > 0 ? (
+                <span
+                  title={`${missingSales} ventas con datos faltantes`}
+                  className={cn(
+                    "rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white",
+                    collapsed ? "absolute ml-8 -mt-6" : "ml-auto",
+                  )}
+                >
+                  {missingSales}
+                </span>
+              ) : null}
             </NavLink>
           );
         })}
