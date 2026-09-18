@@ -77,6 +77,16 @@ function firstInteger(value: unknown) {
   return match ? Number(match[0]) : null;
 }
 
+/** "24 cuotas de $300.000" o "24 x 300000" -> 24 (no toma el importe). */
+function parseInstallments(value: unknown, onlyLabeled = false) {
+  const raw = text(value);
+  const labeled = raw.match(/(\d+)\s*cuotas/i);
+  if (labeled) return Number(labeled[1]);
+  if (onlyLabeled) return null;
+  const leading = raw.match(/^\d{1,3}(?!\d|\.\d)/);
+  return leading ? Number(leading[0]) : null;
+}
+
 function toInput(vehicle: Vehicle): VehicleInput {
   const input: Partial<Vehicle> = { ...vehicle };
   delete input.id;
@@ -336,6 +346,12 @@ export async function syncCompraVentaGenerated(
   const vehicleId = saved.operation.vehicleId || sold?.vehicle.id;
   const salePrice = parseNumberish(values.cantidadNum);
   const finishLater = operationLink(saved.client.id, saved.operation.id);
+  // Las cuotas pueden estar en el Datero o escritas en las observaciones del boleto.
+  const dateroInstallments = dateroValues.tomaCredito === "si" ? parseInstallments(dateroValues.creditoCuotas) : null;
+  const boletoInstallments = parseInstallments(values.observaciones, true);
+  const hasCredit = dateroValues.tomaCredito === "si" || boletoInstallments !== null;
+  const installments = dateroInstallments ?? boletoInstallments;
+  const installmentsText = dateroInstallments ? text(dateroValues.creditoCuotas) : text(values.observaciones);
 
   if (saved.operation.status === "finalizada") {
     messages.push("La operacion ya estaba finalizada.");
@@ -345,8 +361,8 @@ export async function syncCompraVentaGenerated(
   } else if (!(salePrice > 0)) {
     messages.push("Falta el precio: cerra la venta desde Operacion finalizada.");
     links.push(finishLater);
-  } else if (dateroValues.tomaCredito === "si") {
-    messages.push("Venta con credito: completa cuotas y vencimiento en Operacion finalizada para cerrarla.");
+  } else if (hasCredit && !installments) {
+    messages.push("Venta con credito sin cantidad de cuotas: cargalas en Operacion finalizada para cerrarla.");
     links.push(finishLater);
   } else {
     try {
@@ -356,12 +372,21 @@ export async function syncCompraVentaGenerated(
         salePrice,
         buyerName: dateroValues.nombre,
         buyerPhone: dateroValues.celular || dateroValues.telefono,
-        hasCredit: false,
+        hasCredit,
         saleDate,
+        // El credito arranca con el boleto y vence todos los meses ese mismo dia.
+        creditStartDate: hasCredit ? saleDate : undefined,
+        creditInstallmentsText: hasCredit ? installmentsText : undefined,
+        creditTotalInstallments: hasCredit ? installments : null,
+        creditDueDay: hasCredit ? Number(saleDate.slice(8, 10)) : null,
       });
       if (result.mode === "remote") {
         markLocalOperationFinalized(saved.operation.id, vehicleId);
-        messages.push("Venta finalizada: el auto quedo como vendido en el historial.");
+        messages.push(
+          hasCredit
+            ? `Venta finalizada con credito en ${installments} cuotas (vencen el dia ${Number(saleDate.slice(8, 10))}).`
+            : "Venta finalizada: el auto quedo como vendido en el historial.",
+        );
       } else {
         messages.push("Sin conexion con la base: la venta no se pudo finalizar todavia.");
         links.push(finishLater);
