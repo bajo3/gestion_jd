@@ -16,7 +16,11 @@ export function formatCurrency(value: number, currency = "ARS") {
 export function formatDate(value?: string | null) {
   if (!value) return "Sin dato";
 
-  const date = new Date(value);
+  // "2026-09-16" se interpreta en UTC y en Argentina mostraba el dia anterior.
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("es-AR").format(date);

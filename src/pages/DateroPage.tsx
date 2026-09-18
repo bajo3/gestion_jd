@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
+import { syncDateroGenerated } from "@/services/saleSyncService";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
@@ -52,6 +53,7 @@ export function DateroPage() {
   const workflow = useDocumentWorkflow("datero");
   const [params] = useSearchParams();
   const [savedContext, setSavedContext] = useState<{ clientId: string; operationId: string; warning?: string } | null>(null);
+  const generatedDocumentId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const source = workflow.operation?.data as Partial<DateroFormValues> | undefined;
@@ -185,7 +187,23 @@ export function DateroPage() {
       <div className="flex flex-wrap justify-end gap-3">
         <Button variant="outline" onClick={() => save(false)}>{savedContext ? "Guardar cambios" : "Guardar cliente y operación"}</Button>
         {params.get("operationId") ? <Button variant="secondary" onClick={() => save(true)}>Guardar nueva operación</Button> : null}
-        <GenerateDocumentButton documentType="datero" values={values} onGenerate={() => generateDateroPdf(values)} />
+        <GenerateDocumentButton
+          documentType="datero"
+          values={values}
+          onGenerate={() => generateDateroPdf(values)}
+          afterGenerate={async () => {
+            const result = await syncDateroGenerated(values, {
+              operationId: params.get("operationId") || savedContext?.operationId,
+              vehicleId: params.get("vehicleId") || workflow.vehicle?.id,
+              documentId: generatedDocumentId.current ?? workflow.saved?.id,
+            });
+            generatedDocumentId.current = result.document?.id ?? generatedDocumentId.current;
+            if (result.clientId && result.operationId) {
+              setSavedContext({ clientId: result.clientId, operationId: result.operationId });
+            }
+            return result;
+          }}
+        />
       </div>
       {savedContext ? <div className={`rounded-2xl border p-4 text-sm ${savedContext.warning ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}><strong>{savedContext.warning ? "Borrador local." : "Cliente guardado."}</strong> Ya podés completar todos los documentos con los mismos datos.{savedContext.warning ? <p className="mt-1">{savedContext.warning} Reintentá guardar cuando Supabase esté disponible.</p> : null}<div className="mt-3 flex flex-wrap gap-2"><Link to={`/recibo?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Abrir recibo</Button></Link><Link to={`/presupuesto-cliente?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Preparar presupuesto</Button></Link><Link to={`/operacion-finalizada?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Ir a operación finalizada</Button></Link></div></div> : null}
     </DocumentPage>

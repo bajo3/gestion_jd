@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { archiveDocument } from "@/services/documentsService";
 import type { DocumentType } from "@/services/documentDraftService";
 import type { GeneratedPdf } from "@/pdf/common";
+import type { SaleSyncResult } from "@/services/saleSyncService";
 
 type Status =
   | { kind: "saved"; message: string }
@@ -16,6 +17,8 @@ type GenerateDocumentButtonProps = {
   values: Record<string, unknown>;
   onGenerate: () => Promise<GeneratedPdf>;
   label?: string;
+  /** Se ejecuta despues de generar el PDF (ej: cargar cliente y auto). */
+  afterGenerate?: () => Promise<Pick<SaleSyncResult, "messages" | "links">>;
 };
 
 /**
@@ -27,15 +30,18 @@ export function GenerateDocumentButton({
   values,
   onGenerate,
   label = "Generar Resumen",
+  afterGenerate,
 }: GenerateDocumentButtonProps) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
+  const [sync, setSync] = useState<Pick<SaleSyncResult, "messages" | "links"> | null>(null);
 
   const handleClick = async () => {
     if (busy) return;
 
     setBusy(true);
     setStatus(null);
+    setSync(null);
 
     try {
       const pdf = await onGenerate();
@@ -58,6 +64,17 @@ export function GenerateDocumentButton({
         );
       } catch {
         setStatus({ kind: "warning", message: "PDF generado, pero no se pudo archivar." });
+      }
+
+      if (afterGenerate) {
+        try {
+          setSync(await afterGenerate());
+        } catch (error) {
+          setSync({
+            messages: [error instanceof Error ? error.message : "No se pudo cargar el cliente ni el auto."],
+            links: [],
+          });
+        }
       }
     } catch {
       setStatus({ kind: "error", message: "No se pudo generar el documento." });
@@ -94,6 +111,26 @@ export function GenerateDocumentButton({
             </Link>
           ) : null}
         </p>
+      ) : null}
+      {sync?.messages.length ? (
+        <div className="max-w-md space-y-0.5 text-right text-xs text-slate-600">
+          {sync.messages.map((message) => (
+            <p key={message}>{message}</p>
+          ))}
+          <p className="mt-1 flex flex-wrap justify-end gap-3">
+            {sync.links.map((link) => (
+              <Link key={link.to} to={link.to} className="font-medium underline underline-offset-2">
+                {link.label}
+              </Link>
+            ))}
+            <Link to="/ventas/clientes" className="underline underline-offset-2">
+              Ver clientes
+            </Link>
+            <Link to="/autos" className="underline underline-offset-2">
+              Ver historial
+            </Link>
+          </p>
+        </div>
       ) : null}
     </div>
   );

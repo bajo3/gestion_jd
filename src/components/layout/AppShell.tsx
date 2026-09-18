@@ -13,6 +13,7 @@ import {
   Menu,
   Search,
   ShieldAlert,
+  ShieldCheck,
   StickyNote,
   Tag,
   Users,
@@ -36,6 +37,7 @@ const navigation = [
   { to: "/consultas", label: "Consultas", icon: Search },
   { to: "/lista-precios", label: "Lista de precios", icon: Tag },
   { to: "/infracciones", label: "Infracciones", icon: ShieldAlert },
+  { to: "/verificaciones-policiales", label: "Verificaciones policiales", icon: ShieldCheck },
   { to: "/pendientes", label: "Pendientes", icon: StickyNote },
 ];
 

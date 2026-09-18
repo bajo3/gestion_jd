@@ -17,6 +17,7 @@ import { attachFilesToVehicle, deleteVehicleFile, updateVehicle } from "@/servic
 import { uploadVehicleFile } from "@/services/filesService";
 import { generateCompraVentaPdf } from "@/pdf/compraVentaPdf";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
+import { syncCompraVentaGenerated } from "@/services/saleSyncService";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { CompraVentaFormValues } from "@/types/forms";
 import type { Vehicle, VehicleFile } from "@/types/vehicles";
@@ -256,6 +257,13 @@ export function CompraVentaPage() {
             await workflow.save(values as unknown as Record<string, unknown>, "generado");
             return generateCompraVentaPdf(values);
           }}
+          afterGenerate={() =>
+            syncCompraVentaGenerated(values, {
+              operationId: workflow.operation?.id,
+              vehicleId: vehicle?.id,
+              documentSaved: workflow.hasContext,
+            })
+          }
         />
       </div>
     </DocumentPage>

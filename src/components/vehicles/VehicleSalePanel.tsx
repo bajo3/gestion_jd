@@ -18,6 +18,7 @@ const saleDocuments = [
   { to: "/datero", title: "Datero", icon: ClipboardList },
   { to: "/formulario-cliente", title: "Formulario Cliente", icon: ClipboardList },
   { to: "/autorizacion-conduccion", title: "Autorizacion", icon: ShieldCheck },
+  { to: "/verificaciones-policiales", title: "Verificacion policial", icon: ShieldCheck },
 ];
 
 function buildDocumentUrl(path: string, vehicle: Vehicle) {

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
+import { PoliceVerificationPage } from "@/pages/PoliceVerificationPage";
 import { AppShell } from "@/components/layout/AppShell";
 import { isAuthenticated } from "@/lib/auth";
 import { LoginPage } from "@/pages/LoginPage";
@@ -61,6 +62,7 @@ export function Router() {
         <Route path="/ventas" element={<VentasDashboardPage />} />
         <Route path="/ventas/seguimientos" element={<VentasSeguimientosPage />} />
         <Route path="/ventas/documentos" element={<VentasDocumentosPage />} />
+        <Route path="/verificaciones-policiales" element={<PoliceVerificationPage />} />
         <Route path="/ventas/clientes" element={<ClientesPage />} />
         <Route path="/ventas/clientes/:id" element={<ClienteDetallePage />} />
         <Route path="/leads" element={<LeadsPage />} />

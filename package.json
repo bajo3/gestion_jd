@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "police:prefill": "node tools/police-verification/prefill.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -33,6 +34,7 @@
     "tailwindcss": "^4.1.14",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.9"
+    "vite": "^8.0.9",
+    "playwright": "^1.55.0"
   }
 }
