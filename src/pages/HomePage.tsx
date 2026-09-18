@@ -8,7 +8,6 @@ const documents = [
   { to: "/leads", title: "Leads MeLi", description: "Seguimiento de consultas y prioridades.", icon: Inbox },
   { to: "/compra-venta", title: "Compra y Venta", description: "Boleto de compra venta.", icon: FileStack },
   { to: "/autorizacion-conduccion", title: "Autorizacion", description: "Permiso para circular.", icon: ShieldCheck },
-  { to: "/verificaciones-policiales", title: "Verificacion policial", description: "Preparar la carga del portal VPA.", icon: ShieldCheck },
   { to: "/datero", title: "Datero", description: "Formulario de transferencia.", icon: CarFront },
   { to: "/recibo", title: "Recibo", description: "Recibo con original y duplicado.", icon: WalletCards },
   { to: "/operacion-finalizada", title: "Operación finalizada", description: "Cierre explícito de la venta.", icon: FileStack },

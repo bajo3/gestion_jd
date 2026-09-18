@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 const documents = [
   { to: "/compra-venta", title: "Compra y Venta", description: "Boleto y datos principales de la operacion.", icon: FileText },
   { to: "/autorizacion-conduccion", title: "Autorizacion", description: "Autorizacion de conduccion.", icon: ShieldCheck },
-  { to: "/verificaciones-policiales", title: "Verificacion policial", description: "Preparar datos para el portal VPA.", icon: ShieldCheck },
   { to: "/datero", title: "Datero", description: "Ficha de datos para la gestion.", icon: ClipboardList },
   { to: "/recibo", title: "Recibo", description: "Recibo de pago o sena.", icon: Receipt },
   { to: "/operacion-finalizada", title: "Operación finalizada", description: "Cierre explícito de venta y actualización del auto.", icon: CheckCircle2 },
