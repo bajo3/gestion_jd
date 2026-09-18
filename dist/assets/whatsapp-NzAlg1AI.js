@@ -1,0 +1,1 @@
+function e(e){return e.replace(/[\s\-()]/g,``)}function t(t,n){return`https://wa.me/${e(t)}?text=${encodeURIComponent(n)}`}function n(t){return e(t).startsWith(`54`)}export{n,t};

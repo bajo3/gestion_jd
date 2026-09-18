@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   CarFront,
@@ -23,7 +23,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { listVehiclesWithMissingSaleData } from "@/lib/saleMissingData";
 import { listVehicles } from "@/services/vehiclesService";
-import { VehicleAssistant } from "@/components/assistant/VehicleAssistant";
+
+// El asistente flotante no hace falta para pintar el menu: se descarga aparte
+// y no suma peso a la carga inicial de cada pantalla.
+const VehicleAssistant = lazy(() =>
+  import("@/components/assistant/VehicleAssistant").then((m) => ({ default: m.VehicleAssistant })),
+);
 
 const SIDEBAR_KEY = "jd-sidebar-collapsed";
 
@@ -251,7 +256,9 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
-      <VehicleAssistant />
+      <Suspense fallback={null}>
+        <VehicleAssistant />
+      </Suspense>
     </div>
   );
 }

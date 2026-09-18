@@ -1,0 +1,1 @@
+function e(e){let t={...e};return delete t.id,delete t.createdAt,delete t.updatedAt,delete t.files,t}export{e as t};

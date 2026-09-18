@@ -1,7 +1,15 @@
 import type { Vehicle } from "@/types/vehicles";
 
+export type MissingFieldKind = "text" | "date" | "money" | "number";
+
 export type MissingSaleField = {
+  /** Campo del auto que hay que completar. */
+  field: keyof Pick<
+    Vehicle,
+    "buyerName" | "buyerPhone" | "exitDate" | "salePrice" | "creditStartDate" | "creditTotalInstallments"
+  >;
   label: string;
+  kind: MissingFieldKind;
   /** Que se pierde si no se carga (ej: la alerta de postventa). */
   impact?: string;
 };
@@ -16,15 +24,23 @@ export function getMissingSaleData(vehicle: Vehicle): MissingSaleField[] {
   const missing: MissingSaleField[] = [];
   const postSale = "sin esto no se crea la postventa";
 
-  if (!vehicle.buyerName.trim()) missing.push({ label: "Comprador", impact: postSale });
-  if (!vehicle.buyerPhone.trim()) missing.push({ label: "Telefono del comprador", impact: postSale });
+  if (!vehicle.buyerName.trim()) missing.push({ field: "buyerName", label: "Comprador", kind: "text", impact: postSale });
+  if (!vehicle.buyerPhone.trim())
+    missing.push({ field: "buyerPhone", label: "Telefono del comprador", kind: "text", impact: postSale });
 
   if (vehicle.status === "vendido") {
-    if (!vehicle.exitDate) missing.push({ label: "Fecha de venta", impact: postSale });
-    if (!vehicle.salePrice) missing.push({ label: "Precio de venta" });
+    if (!vehicle.exitDate) missing.push({ field: "exitDate", label: "Fecha de venta", kind: "date", impact: postSale });
+    if (!vehicle.salePrice) missing.push({ field: "salePrice", label: "Precio de venta", kind: "money" });
     if (vehicle.hasCredit) {
-      if (!vehicle.creditStartDate) missing.push({ label: "Inicio del credito", impact: "sin esto no se crea el aviso de la cuota 10" });
-      if (!vehicle.creditTotalInstallments) missing.push({ label: "Cantidad de cuotas" });
+      if (!vehicle.creditStartDate)
+        missing.push({
+          field: "creditStartDate",
+          label: "Inicio del credito",
+          kind: "date",
+          impact: "sin esto no se crea el aviso de la cuota 10",
+        });
+      if (!vehicle.creditTotalInstallments)
+        missing.push({ field: "creditTotalInstallments", label: "Cantidad de cuotas", kind: "number" });
     }
   }
 

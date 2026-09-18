@@ -1,0 +1,1 @@
+import{n as e}from"./chunk-CaILmz35.js";import{n as t}from"./jsx-dev-runtime-BNTFj-9I.js";var n=e(t(),1);function r(e){let[t,r]=(0,n.useState)(e);return[t,(0,n.useMemo)(()=>({set(e,t){r(n=>({...n,[e]:t}))},replace(e){r(e)}}),[])]}export{r as t};

@@ -1,4 +1,5 @@
 import { parseNumberish } from "@/lib/utils";
+import { toVehicleInput } from "@/lib/vehicleInput";
 import {
   finalizeSaleAtomic,
   getWorkflowContext,
@@ -89,15 +90,6 @@ function parseInstallments(value: unknown, onlyLabeled = false) {
   return leading ? Number(leading[0]) : null;
 }
 
-function toInput(vehicle: Vehicle): VehicleInput {
-  const input: Partial<Vehicle> = { ...vehicle };
-  delete input.id;
-  delete input.createdAt;
-  delete input.updatedAt;
-  delete input.files;
-  return input as VehicleInput;
-}
-
 function emptyVehicleInput(licensePlate: string): VehicleInput {
   return {
     brand: "",
@@ -157,14 +149,14 @@ async function prepareSoldVehicle(
   const existing = findVehicle(vehicles, data.vehicleId, data.licensePlate);
 
   if (existing) {
-    const input = fillEmpty(toInput(existing), data.details);
+    const input = fillEmpty(toVehicleInput(existing), data.details);
     if (OPEN_STATUSES.includes(input.status)) {
       input.status = "reservado";
       if (data.buyerName) input.buyerName = data.buyerName;
       if (data.buyerPhone) input.buyerPhone = data.buyerPhone;
     }
 
-    const changed = JSON.stringify(input) !== JSON.stringify(toInput(existing));
+    const changed = JSON.stringify(input) !== JSON.stringify(toVehicleInput(existing));
     if (!changed) return { vehicle: existing, message: null };
     const vehicle = await updateVehicle(existing.id, input);
     return { vehicle, message: `Auto ${vehicle.licensePlate} actualizado en Historial de Autos.` };
