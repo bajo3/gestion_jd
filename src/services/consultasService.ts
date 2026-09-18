@@ -36,6 +36,8 @@ export type ConsultaDocument = {
   fileUrl: string | null;
   formData: Record<string, unknown>;
   clientId?: string;
+  clientName?: string;
+  clientDni?: string;
   operationId?: string;
   documentId?: string;
 };
@@ -162,11 +164,14 @@ function mapCurrentDocument(row: CurrentDocumentRow, client?: ClientRow): Consul
     vehicleLabel,
     amount: amount > 0 ? amount : null,
     documentDate,
-    createdAt: row.updated_at ?? row.created_at ?? "",
-    fileName: "",
-    fileUrl: null,
+    createdAt: row.created_at ?? row.updated_at ?? "",
+    // Los documentos pasados desde Consultas conservan el PDF original.
+    fileName: text(values.fileName),
+    fileUrl: text(values.fileUrl) || null,
     formData: values,
     clientId: row.client_id,
+    clientName: client?.nombre?.trim() || personName,
+    clientDni: client?.dni?.trim() || documentNumber,
     operationId: row.operation_id,
     documentId: row.id,
   };
@@ -202,7 +207,7 @@ function searchableDocumentText(document: ConsultaDocument) {
 }
 
 function matches(document: ConsultaDocument, query: string, filter: ConsultaFilter) {
-  if (filter === "archivos" && document.source !== "archivo") return false;
+  if (filter === "archivos" && !document.fileUrl) return false;
   if (filter !== "todos" && filter !== "archivos" && document.documentType !== filter) return false;
   const terms = searchTerms(query);
   if (!terms.length) return true;
@@ -221,9 +226,13 @@ export async function searchConsultas(query = "", filter: ConsultaFilter = "todo
   ]);
 
   const clientsById = new Map(((clientsResult.data ?? []) as ClientRow[]).map((client) => [client.id, client]));
-  const legacyDocuments = legacyResult.error ? [] : ((legacyResult.data ?? []) as LegacyDocumentRow[]).map(mapLegacyDocument);
-  const currentDocuments = currentResult.error ? [] : ((currentResult.data ?? []) as CurrentDocumentRow[])
-    .map((document) => mapCurrentDocument(document, clientsById.get(document.client_id)));
+  const currentRows = currentResult.error ? [] : ((currentResult.data ?? []) as CurrentDocumentRow[]);
+  // Un PDF archivado que ya se asigno a un cliente se muestra una sola vez, dentro del cliente.
+  const assignedLegacyIds = new Set(currentRows.map((row) => text(row.data?.legacyDocumentId)).filter(Boolean));
+  const legacyDocuments = legacyResult.error
+    ? []
+    : ((legacyResult.data ?? []) as LegacyDocumentRow[]).filter((row) => !assignedLegacyIds.has(row.id)).map(mapLegacyDocument);
+  const currentDocuments = currentRows.map((document) => mapCurrentDocument(document, clientsById.get(document.client_id)));
 
   return {
     documents: [...legacyDocuments, ...currentDocuments]

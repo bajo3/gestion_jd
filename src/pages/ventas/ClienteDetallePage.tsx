@@ -76,14 +76,18 @@ function ArchiveDocumentCard({ document }: { document: ConsultaDocument }) {
 }
 
 function CurrentDocumentCard({ document }: { document: ClientDocument }) {
+  const fileUrl = typeof document.data.fileUrl === "string" ? document.data.fileUrl : "";
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <div className="flex flex-wrap items-center gap-2"><Badge className="border-blue-200 bg-blue-50 text-blue-700">{documentTypeLabel(document.documentType)}</Badge><Badge className="border-amber-200 bg-amber-50 text-amber-700">Registro actual</Badge></div>
-        <p className="mt-2 text-sm font-semibold text-slate-900">{formatDateTime(document.updatedAt || document.createdAt)}</p>
-        <p className="text-xs text-slate-500">Estado: {document.status === "generado" ? "Generado" : "Borrador"} · El PDF se descarga desde el documento.</p>
+        <div className="flex flex-wrap items-center gap-2"><Badge className="border-blue-200 bg-blue-50 text-blue-700">{documentTypeLabel(document.documentType)}</Badge>{fileUrl ? <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">PDF</Badge> : <Badge className="border-amber-200 bg-amber-50 text-amber-700">Registro actual</Badge>}</div>
+        <p className="mt-2 text-sm font-semibold text-slate-900">{formatDateTime(document.createdAt || document.updatedAt)}</p>
+        <p className="text-xs text-slate-500">Estado: {document.status === "generado" ? "Generado" : "Borrador"}{fileUrl ? "" : " · El PDF se descarga desde el documento."}</p>
       </div>
-      <Link to={documentUrl(document)}><Button variant="outline"><FileText className="mr-2 h-4 w-4" />Abrir documento</Button></Link>
+      <div className="flex flex-wrap gap-2">
+        {fileUrl ? <a href={fileUrl} target="_blank" rel="noreferrer"><Button variant="outline"><ExternalLink className="mr-2 h-4 w-4" />Abrir PDF</Button></a> : null}
+        <Link to={documentUrl(document)}><Button variant={fileUrl ? "ghost" : "outline"}><FileText className="mr-2 h-4 w-4" />{fileUrl ? "Ver datos" : "Abrir documento"}</Button></Link>
+      </div>
     </div>
   );
 }
@@ -110,7 +114,9 @@ export function ClienteDetallePage() {
         const archiveByDniPromise = client.dni ? searchConsultas(client.dni, "archivos") : Promise.resolve({ documents: [] as ConsultaDocument[], connected: true });
         const [history, sales, vehicles, archiveByName, archiveByDni] = await Promise.all([historyPromise, salesPromise, vehiclesPromise, archiveByNamePromise, archiveByDniPromise]);
         if (!active) return;
-        const archiveDocuments = [...archiveByName.documents, ...archiveByDni.documents].filter((document, index, all) => all.findIndex((candidate) => candidate.id === document.id) === index);
+        const archiveDocuments = [...archiveByName.documents, ...archiveByDni.documents]
+          .filter((document) => document.source === "archivo")
+          .filter((document, index, all) => all.findIndex((candidate) => candidate.id === document.id) === index);
         const normalizedName = client.nombre.trim().toLowerCase();
         const clientSales = sales.filter((sale) => sale.clientId === client.id || (normalizedName && sale.clientName.trim().toLowerCase() === normalizedName));
         setProfile({ client, operations: history.operations, documents: history.documents, archiveDocuments, sales: clientSales, vehicles });

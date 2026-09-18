@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CloudOff, ExternalLink, FileText, FolderArchive, Loader2, RefreshCw, Search } from "lucide-react";
+import { CloudOff, ExternalLink, FileText, FolderArchive, Loader2, RefreshCw, Search, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,8 +52,8 @@ function DocumentCard({ document }: { document: ConsultaDocument }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="border-slate-200 bg-slate-100 text-slate-700">{document.documentLabel}</Badge>
-            <Badge className={document.source === "archivo" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
-              {document.source === "archivo" ? "PDF archivado" : "Registro actual · sin PDF"}
+            <Badge className={document.fileUrl ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
+              {document.fileUrl ? "PDF archivado" : "Registro actual · sin PDF"}
             </Badge>
             {document.licensePlate ? <Badge className="border-[#ff0a8a]/20 bg-[#ff0a8a]/10 text-[#d90875]">{document.licensePlate}</Badge> : null}
           </div>
@@ -96,6 +96,77 @@ function DocumentCard({ document }: { document: ConsultaDocument }) {
   );
 }
 
+type ClientGroup = {
+  key: string;
+  clientId?: string;
+  name: string;
+  dni: string;
+  latest: string;
+  documents: ConsultaDocument[];
+};
+
+/** Agrupa los documentos por cliente; los que no tienen cliente van al final. */
+function groupByClient(documents: ConsultaDocument[]) {
+  const groups = new Map<string, ClientGroup>();
+
+  for (const document of documents) {
+    const key = document.clientId ?? "sin-cliente";
+    const group = groups.get(key) ?? {
+      key,
+      clientId: document.clientId,
+      name: document.clientId ? document.clientName || document.personName || "Cliente" : "Sin cliente asignado",
+      dni: document.clientId ? document.clientDni || "" : "",
+      latest: "",
+      documents: [],
+    };
+    group.documents.push(document);
+    const date = document.documentDate || document.createdAt;
+    if (date > group.latest) group.latest = date;
+    groups.set(key, group);
+  }
+
+  const sorted = [...groups.values()]
+    .filter((group) => group.key !== "sin-cliente")
+    .sort((a, b) => b.latest.localeCompare(a.latest));
+  const unassigned = groups.get("sin-cliente");
+  for (const group of [...sorted, ...(unassigned ? [unassigned] : [])]) {
+    group.documents.sort((a, b) => (b.documentDate || b.createdAt).localeCompare(a.documentDate || a.createdAt));
+  }
+  return unassigned ? [...sorted, unassigned] : sorted;
+}
+
+function ClientGroupSection({ group }: { group: ClientGroup }) {
+  const plates = [...new Set(group.documents.map((document) => document.licensePlate.replace(/[^A-Z0-9]/gi, "").toUpperCase()).filter(Boolean))];
+
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1 pb-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
+            <UserRound className="h-5 w-5 text-fuchsia-600" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-slate-950">{group.name}</h2>
+            <p className="text-sm text-slate-500">
+              {[group.dni && `DNI ${group.dni}`, `${group.documents.length} documento${group.documents.length === 1 ? "" : "s"}`, plates.join(" · ")]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+        </div>
+        {group.clientId ? (
+          <Link to={`/ventas/clientes/${group.clientId}`}>
+            <Button variant="outline">Ver cliente</Button>
+          </Link>
+        ) : null}
+      </div>
+      <div className="space-y-3">
+        {group.documents.map((document) => <DocumentCard key={document.id} document={document} />)}
+      </div>
+    </section>
+  );
+}
+
 export function ConsultasPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
@@ -103,6 +174,7 @@ export function ConsultasPage() {
   const [documents, setDocuments] = useState<ConsultaDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
+  const groups = useMemo(() => groupByClient(documents), [documents]);
 
   const runSearch = useCallback(async (nextQuery: string, nextFilter: ConsultaFilter) => {
     setLoading(true);
@@ -129,7 +201,7 @@ export function ConsultasPage() {
       <PageHeader
         eyebrow="Documentos"
         title="Consultas"
-        description="Buscá por nombre, DNI, teléfono, patente o vehículo. Recupera los PDF archivados y los registros del flujo comercial actual."
+        description="Todos los documentos ordenados por cliente. Buscá por nombre, DNI, teléfono, patente o vehículo."
         actions={<Button variant="outline" onClick={() => void runSearch(query, filter)} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Actualizar</Button>}
       />
 
@@ -143,7 +215,7 @@ export function ConsultasPage() {
           </Select>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <span>{loading ? "Buscando..." : `${documents.length} documento${documents.length === 1 ? "" : "s"}`}</span>
+          <span>{loading ? "Buscando..." : `${documents.length} documento${documents.length === 1 ? "" : "s"} · ${groups.filter((group) => group.clientId).length} cliente${groups.filter((group) => group.clientId).length === 1 ? "" : "s"}`}</span>
           <span className="flex items-center gap-1.5"><FolderArchive className="h-3.5 w-3.5" />Los registros que muestran “PDF archivado” se pueden descargar.</span>
           {!connected ? <span className="flex items-center gap-1.5 font-medium text-amber-700"><CloudOff className="h-3.5 w-3.5" />No se pudo conectar con la base.</span> : null}
         </div>
@@ -151,7 +223,7 @@ export function ConsultasPage() {
 
       {loading && !documents.length ? <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Buscando documentos...</div> : null}
       {!loading && !documents.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><FileText className="mx-auto h-8 w-8 text-slate-400" /><h2 className="mt-3 text-lg font-semibold text-slate-900">{query.trim() ? "No encontramos documentos" : "Todavía no hay documentos guardados"}</h2><p className="mx-auto mt-2 max-w-md text-sm text-slate-500">{query.trim() ? "Probá con la patente sin espacios, solo el apellido o el DNI." : "Los documentos nuevos aparecerán aquí al guardarlos."}</p></div> : null}
-      <div className="space-y-4">{documents.map((document) => <DocumentCard key={document.id} document={document} />)}</div>
+      <div className="space-y-5">{groups.map((group) => <ClientGroupSection key={group.key} group={group} />)}</div>
     </div>
   );
 }
