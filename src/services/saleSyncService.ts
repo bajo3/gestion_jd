@@ -90,7 +90,7 @@ export function parseInstallments(value: unknown, onlyLabeled = false) {
   return leading ? Number(leading[0]) : null;
 }
 
-function emptyVehicleInput(licensePlate: string): VehicleInput {
+export function emptyVehicleInput(licensePlate: string): VehicleInput {
   return {
     brand: "",
     model: "",

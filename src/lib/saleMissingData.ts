@@ -6,7 +6,15 @@ export type MissingSaleField = {
   /** Campo del auto que hay que completar. */
   field: keyof Pick<
     Vehicle,
-    "buyerName" | "buyerPhone" | "exitDate" | "salePrice" | "creditStartDate" | "creditTotalInstallments"
+    | "brand"
+    | "model"
+    | "licensePlate"
+    | "buyerName"
+    | "buyerPhone"
+    | "exitDate"
+    | "salePrice"
+    | "creditStartDate"
+    | "creditTotalInstallments"
   >;
   label: string;
   kind: MissingFieldKind;
@@ -29,6 +37,10 @@ export function getMissingSaleData(vehicle: Vehicle): MissingSaleField[] {
     missing.push({ field: "buyerPhone", label: "Telefono del comprador", kind: "text", impact: postSale });
 
   if (vehicle.status === "vendido") {
+    // Autos que no estaban cargados y se dieron de alta rapido al cerrar la venta.
+    if (!vehicle.brand.trim()) missing.push({ field: "brand", label: "Marca", kind: "text" });
+    if (!vehicle.model.trim()) missing.push({ field: "model", label: "Modelo", kind: "text" });
+    if (!vehicle.licensePlate.trim()) missing.push({ field: "licensePlate", label: "Patente", kind: "text" });
     if (!vehicle.exitDate) missing.push({ field: "exitDate", label: "Fecha de venta", kind: "date", impact: postSale });
     if (!vehicle.salePrice) missing.push({ field: "salePrice", label: "Precio de venta", kind: "money" });
     if (vehicle.hasCredit) {

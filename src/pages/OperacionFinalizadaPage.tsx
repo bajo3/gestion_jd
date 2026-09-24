@@ -11,8 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { finalizeSaleAtomic, markLocalOperationFinalized, saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
-import { emptyDatero, parseInstallments } from "@/services/saleSyncService";
-import { listVehicles } from "@/services/vehiclesService";
+import { emptyDatero, emptyVehicleInput, parseInstallments } from "@/services/saleSyncService";
+import { normalizePlate } from "@/services/documentsService";
+import { createVehicle, listVehicles } from "@/services/vehiclesService";
 import { generateOperacionFinalizadaPdf } from "@/pdf/presupuestoPdf";
 import { parseNumberish } from "@/lib/utils";
 import type { Vehicle } from "@/types/vehicles";
@@ -23,6 +24,9 @@ import { DocumentContextBar, DocumentPage, FormGrid } from "./documentUtils";
 const initialState: OperacionFinalizadaValues = emptySalesDocumentValues;
 
 type Ids = { clientId: string; operationId: string };
+
+/** Opcion del selector para vender un auto que todavia no esta en el historial. */
+const NEW_VEHICLE = "__nuevo__";
 
 /** Dia del mes de una fecha "YYYY-MM-DD": el credito vence todos los meses ese mismo dia. */
 function dayOfMonth(date: string) {
@@ -35,6 +39,8 @@ export function OperacionFinalizadaPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleId, setVehicleId] = useState("");
   const [ids, setIds] = useState<Ids | null>(null);
+  const [newVehicle, setNewVehicle] = useState({ brand: "", model: "", licensePlate: "" });
+  const [createdVehicle, setCreatedVehicle] = useState<Vehicle | null>(null);
   const [finalized, setFinalized] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -83,6 +89,37 @@ export function OperacionFinalizadaPage() {
     form.set("vehKm", String(selected.kilometers ?? ""));
   }, [form, selectedVehicleId, vehicles]);
 
+  const isNewVehicle = selectedVehicleId === NEW_VEHICLE;
+
+  const setNewVehicleField = (field: keyof typeof newVehicle, value: string) => {
+    const next = { ...newVehicle, [field]: value };
+    setNewVehicle(next);
+    form.set("vehModelo", `${next.brand} ${next.model}`.trim());
+  };
+
+  /**
+   * El auto elegido, o uno nuevo dado de alta en el momento con lo minimo.
+   * Lo que falte (patente, marca, modelo) queda marcado en rojo para completarlo despues.
+   */
+  const resolveVehicle = async (): Promise<Vehicle | null> => {
+    if (!isNewVehicle) return vehicles.find((item) => item.id === selectedVehicleId) ?? null;
+    if (createdVehicle) return createdVehicle;
+    const plate = normalizePlate(newVehicle.licensePlate);
+    const existing = plate ? vehicles.find((item) => normalizePlate(item.licensePlate) === plate) : undefined;
+    if (existing) return existing;
+    const vehicle = await createVehicle({
+      ...emptyVehicleInput(newVehicle.licensePlate.trim().toUpperCase()),
+      brand: newVehicle.brand.trim(),
+      model: newVehicle.model.trim(),
+      status: "reservado",
+      buyerName: values.nombre.trim(),
+      buyerPhone: values.telefono.trim(),
+      observations: "Cargado al cerrar la venta: completar los datos del auto.",
+    });
+    setCreatedVehicle(vehicle);
+    return vehicle;
+  };
+
   /** Usa el cliente del Datero si vino; si no, lo crea en el momento con nombre, DNI y telefono. */
   const resolveOperation = async (vehicle: Vehicle): Promise<Ids> => {
     if (ids) return ids;
@@ -120,9 +157,12 @@ export function OperacionFinalizadaPage() {
   const finalize = async () => {
     setError("");
     setNotice("");
-    const vehicle = vehicles.find((item) => item.id === selectedVehicleId);
-    if (!vehicle) {
+    if (!selectedVehicleId) {
       setError("Elegí el auto que se está vendiendo.");
+      return;
+    }
+    if (isNewVehicle && !newVehicle.brand.trim() && !newVehicle.model.trim()) {
+      setError("Escribí al menos la marca o el modelo del auto.");
       return;
     }
     if (!(parseNumberish(values.precioVenta) > 0)) {
@@ -147,6 +187,8 @@ export function OperacionFinalizadaPage() {
     }
     setLoading(true);
     try {
+      const vehicle = await resolveVehicle();
+      if (!vehicle) throw new Error("El auto seleccionado ya no está disponible en el inventario.");
       const { clientId, operationId } = await resolveOperation(vehicle);
       const result = await finalizeSaleAtomic({
         operationId,
@@ -204,7 +246,7 @@ export function OperacionFinalizadaPage() {
       <Card>
         <CardContent className="space-y-5">
           <FormGrid>
-            <FormField label="Auto vendido"><Select value={selectedVehicleId} onChange={(event) => setVehicleId(event.target.value)}><option value="">Seleccionar auto</option>{vehicles.filter((vehicle) => vehicle.status !== "vendido" || vehicle.id === selectedVehicleId).map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.brand} {vehicle.model} · {vehicle.licensePlate || "sin patente"}</option>)}</Select></FormField>
+            <FormField label="Auto vendido"><Select value={selectedVehicleId} onChange={(event) => setVehicleId(event.target.value)}><option value="">Seleccionar auto</option><option value={NEW_VEHICLE}>+ Auto no cargado</option>{vehicles.filter((vehicle) => vehicle.status !== "vendido" || vehicle.id === selectedVehicleId).map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.brand} {vehicle.model} · {vehicle.licensePlate || "sin patente"}</option>)}</Select></FormField>
             <FormField label="Precio de venta"><CurrencyInput value={values.precioVenta} onChange={(value) => form.set("precioVenta", value)} /></FormField>
             <FormField label="Fecha de venta"><Input type="date" value={values.fecha} onChange={(event) => form.set("fecha", event.target.value)} /></FormField>
             {!hasContext ? <>
@@ -215,6 +257,14 @@ export function OperacionFinalizadaPage() {
             <FormField label="¿Toma crédito?"><Select value={values.tomaCredito} onChange={(event) => setCreditEnabled(event.target.value as "si" | "no")}><option value="no">No</option><option value="si">Sí</option></Select></FormField>
             {withCredit ? <FormField label="Cantidad de cuotas"><Input type="number" min="1" step="1" value={values.creditoNumeroCuotas} onChange={(event) => form.set("creditoNumeroCuotas", event.target.value)} /></FormField> : null}
           </FormGrid>
+          {isNewVehicle ? <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-900">Se agrega al Historial de Autos con estos datos. Lo que falte queda marcado en rojo en Ventas para completarlo después.</p>
+            <FormGrid>
+              <FormField label="Marca"><Input value={newVehicle.brand} onChange={(event) => setNewVehicleField("brand", event.target.value)} /></FormField>
+              <FormField label="Modelo"><Input value={newVehicle.model} onChange={(event) => setNewVehicleField("model", event.target.value)} /></FormField>
+              <FormField label="Patente (opcional)"><Input value={newVehicle.licensePlate} onChange={(event) => setNewVehicleField("licensePlate", event.target.value)} /></FormField>
+            </FormGrid>
+          </div> : null}
           {withCredit ? <p className="text-sm text-slate-500">El crédito arranca en la fecha de venta y vence el día {dayOfMonth(values.creditoFechaInicio || values.fecha) || "—"} de cada mes. Podés cambiarlo en “Más datos”.</p> : null}
 
           {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
