@@ -28,7 +28,7 @@ export type SaleSyncResult = {
 
 const OPEN_STATUSES: Vehicle["status"][] = ["ingresado", "en_preparacion", "publicado"];
 
-const emptyDatero: DateroFormValues = {
+export const emptyDatero: DateroFormValues = {
   nombre: "",
   dni: "",
   fechaNacimiento: "",
@@ -81,7 +81,7 @@ function firstInteger(value: unknown) {
 }
 
 /** "24 cuotas de $300.000" o "24 x 300000" -> 24 (no toma el importe). */
-function parseInstallments(value: unknown, onlyLabeled = false) {
+export function parseInstallments(value: unknown, onlyLabeled = false) {
   const raw = text(value);
   const labeled = raw.match(/(\d+)\s*cuotas/i);
   if (labeled) return Number(labeled[1]);
