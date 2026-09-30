@@ -21,7 +21,7 @@ const COMPARED_FIELDS: Array<{ key: keyof PriceListItemInput; label: string }> =
   { key: "traction", label: "Traccion" },
   { key: "gearbox", label: "Caja" },
   { key: "displacement", label: "Cilindrada" },
-  { key: "controlMark", label: "Control" },
+  { key: "controlMark", label: "Estado" },
 ];
 
 type Difference = { label: string; web: string; sheet: string };

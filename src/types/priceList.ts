@@ -2,6 +2,11 @@ export const PRICE_CURRENCIES = ["ARS", "USD"] as const;
 
 export type PriceCurrency = (typeof PRICE_CURRENCIES)[number];
 
+/** El estado vive en la columna L de la planilla ("ESTADO"), la misma que antes era "control". */
+export const PRICE_STATUSES = ["disponible", "vendido"] as const;
+
+export type PriceStatus = (typeof PRICE_STATUSES)[number];
+
 export type PriceListItem = {
   id: string;
   brand: string;

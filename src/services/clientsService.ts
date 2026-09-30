@@ -5,6 +5,7 @@ import { getVehicleById, listVehicles } from "@/services/vehiclesService";
 import { syncCommercialAlertsForVehicle } from "@/services/commercialAlertsService";
 import type { Client, ClientDocument, ClientOperation, DocumentType, FinalizedSale } from "@/types/clients";
 import type { DateroFormValues } from "@/types/forms";
+import { toShared, type SharedData } from "@/lib/sharedData";
 
 const CLIENTS_KEY = "gestion-jd-clients";
 const OPERATIONS_KEY = "gestion-jd-client-operations";
@@ -74,7 +75,7 @@ async function remoteUpsertClient(client: Client) {
   return client;
 }
 
-export async function saveDateroWorkflow(values: DateroFormValues, options: { operationId?: string; vehicleId?: string; createNewOperation?: boolean } = {}) {
+export async function saveDateroWorkflow(values: DateroFormValues, options: { operationId?: string; vehicleId?: string; createNewOperation?: boolean; shared?: SharedData } = {}) {
   const operationId = options.operationId;
   const dniNormalized = normalizeDni(values.dni);
   if (!dniNormalized) throw new Error("El DNI es necesario para guardar el cliente.");
@@ -102,7 +103,15 @@ export async function saveDateroWorkflow(values: DateroFormValues, options: { op
     vehicleId: existingOperation?.vehicleId ?? options.vehicleId ?? null,
     status: existingOperation?.status ?? "borrador",
     fecha: values.fechaOperacion || now.slice(0, 10),
-    data: { ...values },
+    // Lo que cargaron los otros documentos vive en `shared`: se conserva y se suma lo del Datero.
+    data: {
+      ...values,
+      shared: {
+        ...((existingOperation?.data?.shared as SharedData | undefined) ?? {}),
+        ...toShared("datero", values as unknown as Record<string, unknown>),
+        ...(options.shared ?? {}),
+      },
+    },
     createdAt: existingOperation?.createdAt ?? now,
     updatedAt: now,
   };

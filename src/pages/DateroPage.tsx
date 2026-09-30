@@ -8,6 +8,9 @@ import { FormField } from "@/components/shared/FormField";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { useSharedFlow } from "@/hooks/useSharedFlow";
+import { definedOnly, fromShared, nextDocumentLinks, resolveShared } from "@/lib/sharedData";
+import { rememberWorkingData } from "@/services/workingData";
 import { saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
 import { syncDateroGenerated } from "@/services/saleSyncService";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
@@ -54,10 +57,16 @@ export function DateroPage() {
   const [params] = useSearchParams();
   const [savedContext, setSavedContext] = useState<{ clientId: string; operationId: string; warning?: string } | null>(null);
   const generatedDocumentId = useRef<string | undefined>(undefined);
+  const flow = useSharedFlow("datero", workflow, values, form.replace);
 
   useEffect(() => {
-    const source = workflow.operation?.data as Partial<DateroFormValues> | undefined;
-    if (source && !values.nombre) form.replace({ ...initialState, ...source });
+    const stored = workflow.operation?.data as (Partial<DateroFormValues> & { shared?: unknown }) | undefined;
+    if (!stored || values.nombre) return;
+    // Lo ultimo que cargaron los otros documentos (recibo, boleto, presupuesto...) pisa lo viejo del Datero.
+    const { shared: ignored, ...flat } = stored;
+    void ignored;
+    const latest = definedOnly(fromShared("datero", resolveShared({ client: workflow.client, operation: workflow.operation, vehicle: workflow.vehicle })));
+    form.replace({ ...initialState, ...flat, ...latest } as DateroFormValues);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow.operation]);
   useEffect(() => {
@@ -69,9 +78,15 @@ export function DateroPage() {
 
   const save = async (createNewOperation = false) => {
     try {
-      const currentOperationId = createNewOperation ? undefined : params.get("operationId") || savedContext?.operationId;
+      const currentOperationId = createNewOperation ? undefined : params.get("operationId") || savedContext?.operationId || flow.operation?.id;
       const result = await saveDateroWorkflow(values, { operationId: currentOperationId, vehicleId: params.get("vehicleId") || undefined, createNewOperation });
       const documentResult = await saveClientDocument({ id: createNewOperation ? undefined : workflow.saved?.id, clientId: result.client.id, operationId: result.operation.id, documentType: "datero", status: "generado", data: values as unknown as Record<string, unknown> });
+      rememberWorkingData({
+        clientId: result.client.id,
+        operationId: result.operation.id,
+        vehicleId: result.operation.vehicleId ?? undefined,
+        shared: resolveShared({ client: result.client, operation: result.operation, vehicle: workflow.vehicle }),
+      });
       setSavedContext({ clientId: result.client.id, operationId: result.operation.id, warning: result.warning || documentResult.warning });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "No se pudo guardar el datero");
@@ -87,7 +102,8 @@ export function DateroPage() {
 
   return (
     <DocumentPage title="Datero" description="Formulario para transferencia con datos del comprador, operación y auto entregado.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       {workflow.vehicle ? <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><strong>Auto seleccionado:</strong> {workflow.vehicle.brand} {workflow.vehicle.model}{workflow.vehicle.licensePlate ? ` · ${workflow.vehicle.licensePlate}` : ""}. Se va a conservar al guardar la operación.</div> : null}
       <FormSection title="Datos del comprador">
@@ -193,13 +209,24 @@ export function DateroPage() {
           onGenerate={() => generateDateroPdf(values)}
           afterGenerate={async () => {
             const result = await syncDateroGenerated(values, {
-              operationId: params.get("operationId") || savedContext?.operationId,
+              operationId: params.get("operationId") || savedContext?.operationId || flow.operation?.id,
               vehicleId: params.get("vehicleId") || workflow.vehicle?.id,
               documentId: generatedDocumentId.current ?? workflow.saved?.id,
             });
             generatedDocumentId.current = result.document?.id ?? generatedDocumentId.current;
             if (result.clientId && result.operationId) {
               setSavedContext({ clientId: result.clientId, operationId: result.operationId });
+              return {
+                ...result,
+                links: [
+                  ...result.links,
+                  ...nextDocumentLinks("datero", {
+                    clientId: result.clientId,
+                    operationId: result.operationId,
+                    vehicleId: params.get("vehicleId") || workflow.vehicle?.id,
+                  }),
+                ],
+              };
             }
             return result;
           }}

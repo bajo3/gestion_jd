@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -7,6 +8,8 @@ import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { useSharedFlow } from "@/hooks/useSharedFlow";
+import type { SaleSyncLink } from "@/services/saleSyncService";
 import { generatePresupuestoPdf } from "@/pdf/presupuestoPdf";
 import { archiveDocument } from "@/services/documentsService";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
@@ -22,41 +25,27 @@ export function PresupuestoPage() {
   const workflowExtras = workflow as typeof workflow & WorkflowExtras;
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const hydrated = useRef(false);
+  const [links, setLinks] = useState<SaleSyncLink[]>([]);
+  const flow = useSharedFlow("presupuesto_cliente", workflow, values, form.replace);
 
   useEffect(() => {
-    if (hydrated.current) return;
     const draft = consumeDocumentDraft<PresupuestoValues>("presupuesto");
-    if (draft) {
-      hydrated.current = true;
-      form.replace({ ...initialState, ...draft });
-      return;
-    }
-    const source = (workflow.operation?.data ?? {}) as Partial<PresupuestoValues> & { ppaModelo?: string; ppaAnio?: string };
-    const saved = (workflow.saved?.data ?? {}) as Partial<PresupuestoValues>;
-    if (!workflow.client && !workflow.operation && !workflow.saved) return;
-    hydrated.current = true;
-    form.replace({
-      ...initialState,
-      ...source,
-      nombre: saved.nombre || workflow.client?.nombre || source.nombre || "",
-      telefono: saved.telefono || workflow.client?.telefono || workflow.client?.celular || source.telefono || "",
-      dni: saved.dni || workflow.client?.dni || source.dni || "",
-      vehModelo: saved.vehModelo || source.vehModelo || source.ppaModelo || "",
-      vehAnio: saved.vehAnio || source.vehAnio || source.ppaAnio || "",
-      ...(workflowExtras.vehicle ? { vehModelo: saved.vehModelo || `${workflowExtras.vehicle.brand} ${workflowExtras.vehicle.model}`.trim(), vehAnio: saved.vehAnio || String(workflowExtras.vehicle.year ?? ""), vehKm: saved.vehKm || String(workflowExtras.vehicle.kilometers ?? "") } : {}),
-      ...saved,
-    });
-  }, [form, workflow.client, workflow.operation, workflow.saved, workflowExtras.vehicle]);
+    if (draft) form.replace({ ...initialState, ...draft });
+  }, [form]);
+
+  useEffect(() => {
+    if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<PresupuestoValues>) });
+  }, [form, workflow.saved]);
 
   const save = async (status: "borrador" | "generado") => {
     setSaving(true);
     setMessage("");
     try {
-      const result = await workflow.save(values as unknown as Record<string, unknown>, status, workflowExtras.documentId ?? undefined);
-      if (workflow.hasContext && !result) throw new Error("No se pudo guardar el presupuesto.");
-      if (result?.warning) setMessage(result.warning);
-      else setMessage(status === "generado" ? "Presupuesto guardado." : "Borrador guardado.");
+      const result = await flow.commit(values, { documentId: workflowExtras.documentId, status });
+      setLinks(result.links);
+      if (result.warnings.length) setMessage(result.warnings.join(" "));
+      else if (result.document) setMessage(status === "generado" ? "Presupuesto guardado. Los demás documentos ya tienen estos datos." : "Borrador guardado.");
+      else setMessage(status === "generado" ? "Presupuesto listo." : "Borrador listo.");
       return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo guardar el presupuesto.");
@@ -68,7 +57,7 @@ export function PresupuestoPage() {
 
   const generate = async () => {
     const saved = await save("generado");
-    if (!saved && workflow.hasContext) return;
+    if (!saved) return;
     const pdf = await generatePresupuestoPdf(values);
     try {
       const archived = await archiveDocument({
@@ -96,7 +85,8 @@ export function PresupuestoPage() {
 
   return (
     <DocumentPage title="Presupuesto para cliente" description="Una propuesta clara, editable y lista para entregar. Generarla no marca el auto como vendido.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       <FormSection title="Datos generales" description="Estos datos se reutilizan en recibo, autorización, operación y compra venta.">
         <FormGrid columns="md:grid-cols-2 xl:grid-cols-4">
           <FormField label="Fecha"><Input type="date" value={values.fecha} onChange={(event) => form.set("fecha", event.target.value)} /></FormField>
@@ -145,6 +135,7 @@ export function PresupuestoPage() {
       </FormSection>
 
       {message ? <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700" role="status">{message}</p> : null}
+      {links.length ? <div className="flex flex-wrap gap-3 text-sm">{links.map((link) => <Link key={link.to} to={link.to} className="font-semibold text-slate-900 underline underline-offset-2">{link.label}</Link>)}</div> : null}
       <div className="flex flex-wrap justify-end gap-3"><Button variant="outline" disabled={saving} onClick={() => void save("borrador")}>Guardar presupuesto</Button><Button disabled={saving} onClick={() => void generate()}>{saving ? "Guardando…" : "Generar PDF para cliente"}</Button></div>
     </DocumentPage>
   );

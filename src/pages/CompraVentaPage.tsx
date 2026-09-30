@@ -10,6 +10,8 @@ import { FormField } from "@/components/shared/FormField";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { useSharedFlow } from "@/hooks/useSharedFlow";
+import { nextDocumentLinks } from "@/lib/sharedData";
 import { FileUploader } from "@/components/vehicles/FileUploader";
 import { VehicleFiles } from "@/components/vehicles/VehicleFiles";
 import { StatusBadge } from "@/components/vehicles/StatusBadge";
@@ -43,6 +45,7 @@ const initialState: CompraVentaFormValues = {
 export function CompraVentaPage() {
   const [values, form] = useObjectState(initialState);
   const workflow = useDocumentWorkflow("compra_venta");
+  const flow = useSharedFlow("compra_venta", workflow, values, form.replace);
   const [addedVehicleFiles, setAddedVehicleFiles] = useState<VehicleFile[]>([]);
   const [deletedVehicleFileIds, setDeletedVehicleFileIds] = useState<string[]>([]);
   const [vehicleNotice, setVehicleNotice] = useState<string | null>(null);
@@ -52,32 +55,14 @@ export function CompraVentaPage() {
   const vehicleQuery = (() => {
     if (!vehicle) return "";
     const query = new URLSearchParams({ vehicleId: vehicle.id });
-    if (workflow.client?.id) query.set("clientId", workflow.client.id);
-    if (workflow.operation?.id) query.set("operationId", workflow.operation.id);
+    if (flow.client?.id) query.set("clientId", flow.client.id);
+    if (flow.operation?.id) query.set("operationId", flow.operation.id);
     return `?${query.toString()}`;
   })();
   const vehicleFiles = [
     ...addedVehicleFiles,
     ...(vehicle?.files ?? []).filter((file) => !deletedVehicleFileIds.includes(file.id) && !addedVehicleFiles.some((added) => added.id === file.id)),
   ];
-
-  useEffect(() => {
-    const data = workflow.operation?.data as Record<string, string> | undefined;
-    if (workflow.client && !values.recibido) form.replace({ ...values, recibido: workflow.client.nombre, numeroDoc: workflow.client.dni, telefono: workflow.client.telefono || workflow.client.celular, domicilio: workflow.client.domicilio, fecha: data?.fechaOperacion ?? values.fecha, dominio: workflow.prefill.dominio || data?.dominio || "", marca: workflow.prefill.vehiculoMarca, modelo: workflow.prefill.vehiculoModelo });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow.client, workflow.operation, workflow.prefill]);
-
-  useEffect(() => {
-    if (!vehicle) return;
-    const nextValues: Partial<CompraVentaFormValues> = {};
-    if (!values.dominio) nextValues.dominio = vehicle.licensePlate;
-    if (!values.marca) nextValues.marca = vehicle.brand;
-    if (!values.modelo) nextValues.modelo = vehicle.model;
-    if (!values.nMotor) nextValues.nMotor = vehicle.engine;
-    if (!values.nChasis) nextValues.nChasis = vehicle.vin;
-    if (Object.keys(nextValues).length) form.replace({ ...values, ...nextValues });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle]);
 
   useEffect(() => {
     if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<CompraVentaFormValues>) });
@@ -114,7 +99,8 @@ export function CompraVentaPage() {
 
   return (
     <DocumentPage title="Compra y Venta" description="Boleto de compra venta migrado desde la version original.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       {vehicle ? (
         <Card>
@@ -257,13 +243,26 @@ export function CompraVentaPage() {
             await workflow.save(values as unknown as Record<string, unknown>, "generado");
             return generateCompraVentaPdf(values);
           }}
-          afterGenerate={() =>
-            syncCompraVentaGenerated(values, {
-              operationId: workflow.operation?.id,
+          afterGenerate={async () => {
+            const result = await syncCompraVentaGenerated(values, {
+              operationId: flow.operation?.id,
               vehicleId: vehicle?.id,
               documentSaved: workflow.hasContext,
-            })
-          }
+            });
+            if (!result.clientId || !result.operationId) return result;
+            // Con la operacion ya guardada, los otros documentos salen con los mismos datos.
+            return {
+              ...result,
+              links: [
+                ...result.links,
+                ...nextDocumentLinks("compra_venta", {
+                  clientId: result.clientId,
+                  operationId: result.operationId,
+                  vehicleId: vehicle?.id,
+                }),
+              ],
+            };
+          }}
         />
       </div>
     </DocumentPage>

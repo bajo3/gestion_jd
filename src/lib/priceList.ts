@@ -1,4 +1,4 @@
-import type { PriceCurrency, PriceListItem, PriceListItemInput } from "@/types/priceList";
+import type { PriceCurrency, PriceListItem, PriceListItemInput, PriceStatus } from "@/types/priceList";
 
 /** Reduce un item a su forma editable: lo que se manda a Supabase y a la planilla. */
 export function priceListItemToInput(item: PriceListItem): PriceListItemInput {
@@ -44,9 +44,39 @@ export function formatPriceInput(value: number | null) {
   return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(value);
 }
 
+export const PRICE_STATUS_LABELS: Record<PriceStatus, string> = {
+  disponible: "Disponible",
+  vendido: "Vendido",
+};
+
+/** Lee el estado de la columna "ESTADO" de la planilla: vendido o disponible. Cualquier otra marca vieja cuenta como disponible. */
+export function priceStatusFromText(text: string): PriceStatus {
+  const value = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  if (value.includes("vendid")) return "vendido";
+  return "disponible";
+}
+
+export function priceListItemStatus(item: Pick<PriceListItem, "controlMark">): PriceStatus {
+  return priceStatusFromText(item.controlMark ?? "");
+}
+
+/** Lo que se escribe en la planilla al cambiar el estado desde la web. */
+export function priceStatusToSheetText(status: PriceStatus) {
+  return PRICE_STATUS_LABELS[status];
+}
+
+/** En la planilla hay unidades todo en minuscula ("t cross"): se muestran con mayuscula inicial. */
+export function displayCase(text: string) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean === clean.toLowerCase() ? clean.replace(/(^|\s)(\S)/g, (_, space, char) => space + char.toUpperCase()) : clean;
+}
+
 /** Titulo visible del vehiculo: "BJ 30 4 X 4" o solo la unidad si no hay version. */
 export function priceListItemTitle(item: PriceListItem) {
-  return [item.unit, item.version].filter(Boolean).join(" ").trim() || item.brand;
+  return displayCase([item.unit, item.version].filter(Boolean).join(" ")) || item.brand;
 }
 
 /** Etiquetas cortas para los chips de la card (combustible, caja, traccion, color). */

@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { useSharedFlow } from "@/hooks/useSharedFlow";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
@@ -37,9 +38,7 @@ function ImagePreview({ file }: { file: File | null }) {
 export function FormularioClientePage() {
   const [values, form] = useObjectState(initialState);
   const workflow = useDocumentWorkflow("formulario_cliente");
-  useEffect(() => {
-    if (workflow.client && !values.dni) form.replace({ ...initialState, dni: workflow.client.dni, cuil: workflow.client.cuil });
-  }, [form, values.dni, workflow.client]);
+  const flow = useSharedFlow("formulario_cliente", workflow, values, form.replace);
   useEffect(() => {
     if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<ClientState>) });
   }, [form, workflow.saved]);
@@ -53,7 +52,8 @@ export function FormularioClientePage() {
 
   return (
     <DocumentPage title="Formulario Cliente" description="Datos basicos, situacion laboral y documentacion de DNI para resumen interno.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Datos del cliente">
         <FormGrid columns="md:grid-cols-3">

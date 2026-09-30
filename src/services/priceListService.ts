@@ -298,6 +298,13 @@ export type SheetConflict = {
 export type SheetPullResult = {
   /** Vehiculos que solo cambiaron en la planilla y ya se importaron. */
   imported: PriceListItem[];
+  /** Vehiculos que la planilla tiene bajo otra marca: se movieron a la que dice la planilla. */
+  rebranded: PriceListItem[];
+  /**
+   * Vehiculos de la app cuya fila en la planilla ahora esta vacia o es un titulo de marca:
+   * se borraron o se movieron alla. Suelen ser duplicados de una fila que ya se importo de nuevo.
+   */
+  orphans: PriceListItem[];
   /** Filas nuevas de la planilla, dadas de alta como vehiculos. */
   created: PriceListItem[];
   /** Vehiculos que se editaron de los dos lados: los resuelve el usuario. */
@@ -306,7 +313,7 @@ export type SheetPullResult = {
   error?: string;
 };
 
-const EMPTY_PULL: SheetPullResult = { imported: [], created: [], conflicts: [] };
+const EMPTY_PULL: SheetPullResult = { imported: [], rebranded: [], orphans: [], created: [], conflicts: [] };
 
 /** Guarda en Supabase una fila importada de la planilla, sin volver a escribirla ahi. */
 async function applySheetImport(item: PriceListItem, input: PriceListItemInput, signature: string) {
@@ -316,6 +323,26 @@ async function applySheetImport(item: PriceListItem, input: PriceListItemInput, 
     const { data, error } = await supabase
       .from(PRICE_LIST_TABLE)
       .update({ ...itemPayload(input), sheet_snapshot: signature })
+      .eq("id", item.id)
+      .eq("app_source", APP_SOURCE)
+      .select("*")
+      .single();
+
+    if (error || !data) return null;
+    return mapDbItem(data as DbPriceListItem);
+  } catch {
+    return null;
+  }
+}
+
+/** Cambia solo la marca de un vehiculo, sin tocar su fila ni su snapshot. */
+async function applyBrand(item: PriceListItem, brand: string) {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from(PRICE_LIST_TABLE)
+      .update({ brand })
       .eq("id", item.id)
       .eq("app_source", APP_SOURCE)
       .select("*")
@@ -366,13 +393,27 @@ export async function pullSheetChanges(items: PriceListItem[]): Promise<SheetPul
     };
   }
 
-  const result: SheetPullResult = { imported: [], created: [], conflicts: [] };
+  const result: SheetPullResult = { imported: [], rebranded: [], orphans: [], created: [], conflicts: [] };
 
   for (const [index, values] of rows.entries()) {
     const sheetRow = index + 1;
     if (isSheetRowEmpty(values) || isSheetBrandHeader(values)) continue;
 
-    const item = bySheetRow.get(sheetRow);
+    let item = bySheetRow.get(sheetRow);
+
+    // La marca no viaja en las columnas: es el titulo que hay arriba de la fila. Si se
+    // reordeno la planilla, el vehiculo sigue a su titulo, sino quedaba con la marca vieja.
+    if (item) {
+      const sheetBrand = brandForRow(rows, index);
+      if (sheetBrand && item.brand.trim().toUpperCase() !== sheetBrand) {
+        const moved = await applyBrand(item, sheetBrand);
+        if (moved) {
+          item = moved;
+          result.rebranded.push(moved);
+        }
+      }
+    }
+
     const base = item ? priceListItemToInput(item) : emptyPriceListItem();
     const signature = sheetValuesSignature(normalizeSheetValues(values, base));
 
@@ -431,7 +472,37 @@ export async function pullSheetChanges(items: PriceListItem[]): Promise<SheetPul
     await pushItemToSheet(item);
   }
 
+  // Una planilla sin filas no es "todo borrado": es una lectura rara, no se saca nada.
+  if (rows.length) {
+    result.orphans = items.filter((item) => {
+      if (!item.sheetRow) return false;
+      const values = rows[item.sheetRow - 1] ?? [];
+      return isSheetRowEmpty(values) || isSheetBrandHeader(values);
+    });
+  }
+
   return result;
+}
+
+/**
+ * Saca de la app vehiculos que ya no estan en la planilla. No toca la planilla:
+ * su fila esta vacia o es un titulo de marca, y limpiarla borraria ese titulo.
+ */
+export async function removeItemsFromApp(ids: string[]) {
+  if (!ids.length) return { persisted: true };
+
+  let persisted = false;
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from(PRICE_LIST_TABLE).delete().in("id", ids).eq("app_source", APP_SOURCE);
+      persisted = !error;
+    } catch {
+      persisted = false;
+    }
+  }
+
+  if (persisted) saveLocalItems(readLocalItems().filter((item) => !ids.includes(item.id)));
+  return { persisted };
 }
 
 /** Alta de un vehiculo que aparecio a mano en la planilla. */

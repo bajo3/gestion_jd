@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { useSharedFlow, type FlowCommit } from "@/hooks/useSharedFlow";
 import { parseNumberish } from "@/lib/utils";
 import { amountToLetters, generateReciboPdf } from "@/pdf/reciboPdf";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
@@ -45,11 +46,8 @@ export function ReciboPage() {
   const [documentId, setDocumentId] = useState(params.get("documentId"));
   const [generated, setGenerated] = useState(false);
 
-  useEffect(() => {
-    const operationData = workflow.operation?.data as Record<string, string> | undefined;
-    if (workflow.client && !values.cliente) form.replace({ ...values, cliente: workflow.client.nombre, doc: workflow.client.dni, domicilio: workflow.client.domicilio, localidad: [workflow.client.localidad, workflow.client.provincia].filter(Boolean).join(" / "), concepto: values.concepto || `Seña de operación de ${workflow.client.nombre}`, vehiculo: workflow.prefill.vehiculo || (operationData?.dominio ? `Vehículo dominio ${operationData.dominio}` : values.vehiculo), vehiculoDominio: workflow.prefill.dominio || operationData?.dominio || values.vehiculoDominio });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow.client, workflow.prefill]);
+  const flow = useSharedFlow("recibo", workflow, values, form.replace);
+  const syncRef = useRef<FlowCommit | null>(null);
 
   useEffect(() => {
     if (workflow.saved?.data) form.replace({ ...initialState, ...(workflow.saved.data as Partial<typeof initialState>) });
@@ -72,7 +70,8 @@ export function ReciboPage() {
 
   return (
     <DocumentPage title="Recibo" description="Recibo de seña o pago con correlativo local y opcion de duplicado.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Datos del recibo">
         <FormGrid columns="md:grid-cols-2 xl:grid-cols-4">
@@ -155,15 +154,17 @@ export function ReciboPage() {
           documentType="recibo"
           values={values}
           onGenerate={async () => {
-            const result = await workflow.save(values as unknown as Record<string, unknown>, "generado", documentId ?? undefined, { newDocument: !documentId });
+            const result = await flow.commit(values, { documentId, newDocument: !documentId });
+            syncRef.current = result;
             const pdf = await generateReciboPdf(values);
-            if (result?.document) setDocumentId(result.document.id);
+            if (result.document) setDocumentId(result.document.id);
             if (!generated && !documentId) {
               commitReceiptNumber();
               setGenerated(true);
             }
             return pdf;
           }}
+          afterGenerate={async () => syncRef.current ?? { messages: [], warnings: [], links: [] }}
         />
         <Button variant="outline" onClick={() => { const next = new URLSearchParams(); ["clientId", "operationId", "vehicleId"].forEach((key) => { const value = params.get(key); if (value) next.set(key, value); }); next.set("newDocument", String(Date.now())); navigate(`/recibo?${next.toString()}`); }}>
           Nuevo recibo

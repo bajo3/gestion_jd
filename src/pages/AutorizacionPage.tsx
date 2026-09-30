@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { useSharedFlow, type FlowCommit } from "@/hooks/useSharedFlow";
 import { generateAutorizacionPdf } from "@/pdf/autorizacionPdf";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
@@ -48,12 +49,8 @@ function resolveCurrentOwner(workflow: ReturnType<typeof useDocumentWorkflow>) {
 export function AutorizacionPage() {
   const [values, form] = useObjectState(initialState);
   const workflow = useDocumentWorkflow("autorizacion");
-  useEffect(() => {
-    const data = workflow.operation?.data as Record<string, string> | undefined;
-    const owner = resolveCurrentOwner(workflow);
-    if ((data || workflow.client || workflow.vehicle) && !values.autorizado) form.replace({ ...values, fecha: data?.fechaOperacion ?? values.fecha, autorizado: workflow.client?.nombre ?? data?.nombre ?? "", titular: owner.nombre, propietarioNombre: owner.nombre, propietarioDni: owner.dni, propietarioDomicilio: owner.domicilio, propietarioLocalidad: owner.localidad, dominio: workflow.prefill.dominio || data?.dominio || "", marca: workflow.prefill.vehiculoMarca, modelo: workflow.prefill.vehiculoModelo, anio: workflow.prefill.vehiculoAnio, domicilioAuto: workflow.prefill.domicilio });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow.client, workflow.operation, workflow.vehicle, workflow.prefill]);
+  const flow = useSharedFlow("autorizacion", workflow, values, form.replace);
+  const syncRef = useRef<FlowCommit | null>(null);
   useEffect(() => {
     if (workflow.saved?.data) {
       const savedData = workflow.saved.data as Partial<AutorizacionFormValues>;
@@ -72,7 +69,8 @@ export function AutorizacionPage() {
 
   return (
     <DocumentPage title="Autorizacion de Conduccion" description="Permiso de autorizacion para circular y constancia asociada.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Informacion general">
         <FormGrid>
@@ -136,9 +134,10 @@ export function AutorizacionPage() {
           documentType="autorizacion"
           values={values}
           onGenerate={async () => {
-            await workflow.save(values as unknown as Record<string, unknown>, "generado");
+            syncRef.current = await flow.commit(values);
             return generateAutorizacionPdf(values);
           }}
+          afterGenerate={async () => syncRef.current ?? { messages: [], warnings: [], links: [] }}
         />
       </div>
     </DocumentPage>

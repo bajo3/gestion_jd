@@ -1,3 +1,4 @@
+import { resolveShared, toShared } from "@/lib/sharedData";
 import { parseNumberish } from "@/lib/utils";
 import { toVehicleInput } from "@/lib/vehicleInput";
 import {
@@ -9,6 +10,7 @@ import {
   saveDateroWorkflow,
 } from "@/services/clientsService";
 import { normalizePlate } from "@/services/documentsService";
+import { rememberWorkingData } from "@/services/workingData";
 import { createVehicle, listVehicles, updateVehicle } from "@/services/vehiclesService";
 import type { ClientDocument } from "@/types/clients";
 import type { CompraVentaFormValues, DateroFormValues } from "@/types/forms";
@@ -227,6 +229,12 @@ export async function syncDateroGenerated(
   });
 
   const saved = await saveDateroWorkflow(values, { operationId: context.operationId, vehicleId: sold?.vehicle.id });
+  rememberWorkingData({
+    clientId: saved.client.id,
+    operationId: saved.operation.id,
+    vehicleId: sold?.vehicle.id,
+    shared: resolveShared({ client: saved.client, operation: saved.operation, vehicle: sold?.vehicle }),
+  });
   const document = await saveClientDocument({
     id: context.documentId,
     clientId: saved.client.id,
@@ -326,6 +334,14 @@ export async function syncCompraVentaGenerated(
   const saved = await saveDateroWorkflow(dateroValues, {
     operationId: openOperation?.id,
     vehicleId: sold?.vehicle.id,
+    // Lo propio del boleto (auto, motor, chasis, precio) queda para los demas documentos.
+    shared: toShared("compra_venta", values as unknown as Record<string, unknown>),
+  });
+  rememberWorkingData({
+    clientId: saved.client.id,
+    operationId: saved.operation.id,
+    vehicleId: sold?.vehicle.id,
+    shared: resolveShared({ client: saved.client, operation: saved.operation, vehicle: sold?.vehicle }),
   });
 
   if (!context.documentSaved) {

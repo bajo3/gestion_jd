@@ -8,7 +8,7 @@ Revisión del 2026-09-23 sobre el estado actual de `main` (2062063).
 - **Leads** (`meli_leads`): estados sin_contactar → cerrado, más **encargos** (buscando / encontrado / en_pausa / cancelado).
 - **Clientes / operaciones / documentos** con historial por DNI; el cliente ya guarda `fecha_nacimiento`, pero no se usa.
 - **Presupuesto** con toma de usado; `saleSyncService.registerTradeIn` da de alta el usado entregado.
-- Catálogo público y lista de precios sincronizada con Google Sheets.
+- Lista de precios sincronizada con Google Sheets.
 
 ## Propuestas, ordenadas por impacto y esfuerzo
 
@@ -26,7 +26,7 @@ Revisión del 2026-09-23 sobre el estado actual de `main` (2062063).
 7. **Aviso de baja de precio**: si cambia el precio en la lista, notificar a los leads que consultaron por ese auto.
 8. **Fin de crédito = nueva venta**: además de la cuota 10, alertar 3 cuotas antes de terminar (`credit_total_installments` y `credit_start_date` ya están) con una oferta de canje.
 9. **Referidos**: un código o link por cliente y un campo "¿Cómo nos conociste? / Referido por" en el Datero. Mostrar en la ficha del cliente cuántas ventas trajo y agradecerle.
-10. **Antigüedad de stock**: marcar autos publicados hace más de 45/60/90 días en el dashboard, con sugerencia de ajuste de precio o de destacarlos en el catálogo.
+10. **Antigüedad de stock**: marcar autos publicados hace más de 45/60/90 días en el dashboard, con sugerencia de ajuste de precio o de darles más difusión.
 
 ### Tablero comercial
 
@@ -48,19 +48,13 @@ Revisión del 2026-09-23 sobre el estado actual de `main` (2062063).
 - `message_template` se copia en cada alerta, así que cambiar una plantilla no actualiza las alertas que ya existen.
 - Los teléfonos sin `54` solo muestran un aviso. Conviene normalizarlos a `549…` al guardar para que `wa.me` funcione siempre.
 
-## Segunda revisión: Leads, Presupuesto y Catálogo
+## Segunda revisión: Leads y Presupuesto
 
-### Catálogo público: hoy no captura nada
-
-17. **Registrar el interés**: el botón de WhatsApp de [CatalogVehicleCard.tsx](../src/components/catalogo/CatalogVehicleCard.tsx) abre el chat pero no queda registro en la app. Guardar cada clic (auto + fecha) en una tabla de eventos daría un ranking de "autos más consultados" y serviría para la propuesta #7 (baja de precio).
-18. **Link propio por auto** (`/catalogo/:id`) con imagen y título para vista previa, para compartir en Instagram, Marketplace y estados de WhatsApp. Hoy solo se puede compartir el catálogo entero.
-19. **"Simulá tu cuota"** en cada tarjeta, reutilizando la lógica de la Calculadora 0km o del crédito, que muestre la cuota junto al precio.
-20. **"Tomamos tu usado"**: un formulario corto (marca, modelo, año, km, teléfono) que entre a Leads como tipo `permuta`. Es la puerta de entrada más común para cambiar de auto.
-21. **Link con referido** (`?ref=CODIGO`): si el lead llega desde el link de un cliente, queda atribuido. Complementa la #9.
+> El catálogo público se sacó de la app (nadie lo usaba), así que se descartan las ideas de catálogo (registrar consultas, link por auto, simulador de cuota, "tomamos tu usado" y link de referido).
 
 ### Leads
 
-22. **Mensajes por estado**: `whatsappLink` en [LeadsPage.tsx:206](../src/pages/LeadsPage.tsx) abre el chat vacío. Conviene un mensaje distinto para sin contactar, recontactar y no contesta, que incluya el auto consultado y su link del catálogo.
+22. **Mensajes por estado**: `whatsappLink` en [LeadsPage.tsx:206](../src/pages/LeadsPage.tsx) abre el chat vacío. Conviene un mensaje distinto para sin contactar, recontactar y no contesta, que incluya el auto consultado.
 23. **Relacionar el lead con el auto**: `leads.auto` es texto libre (`item_title`). Guardar además el id del ítem de la lista o del vehículo es lo que permite el cruce automático (#6) y los avisos de precio (#7).
 24. **Pasar de lead a Datero en un clic**, con nombre, teléfono y auto ya cargados, y el lead marcado como `cerrado` al finalizar la operación. Así el embudo (#11) se mide solo.
 

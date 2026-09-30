@@ -52,7 +52,6 @@ const ConsultasPage = lazy(() => import("@/pages/ConsultasPage").then((m) => ({ 
 const ListaPreciosPage = lazy(() =>
   import("@/pages/precios/ListaPreciosPage").then((m) => ({ default: m.ListaPreciosPage })),
 );
-const CatalogoPage = lazy(() => import("@/pages/catalogo/CatalogoPage").then((m) => ({ default: m.CatalogoPage })));
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -81,7 +80,6 @@ export function Router() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <Routes>
-        <Route path="/catalogo" element={<CatalogoPage />} />
         <Route
           path="/login"
           element={isAuthenticated() ? <Navigate to="/" replace /> : <LoginPage />}

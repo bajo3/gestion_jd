@@ -10,8 +10,10 @@ import { FormField } from "@/components/shared/FormField";
 import { Card, CardContent } from "@/components/ui/card";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
-import { finalizeSaleAtomic, markLocalOperationFinalized, saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
-import { emptyDatero, emptyVehicleInput, parseInstallments } from "@/services/saleSyncService";
+import { useSharedFlow } from "@/hooks/useSharedFlow";
+import { commitSharedData } from "@/services/sharedDataService";
+import { finalizeSaleAtomic, markLocalOperationFinalized, saveClientDocument } from "@/services/clientsService";
+import { emptyVehicleInput } from "@/services/saleSyncService";
 import { normalizePlate } from "@/services/documentsService";
 import { createVehicle, listVehicles } from "@/services/vehiclesService";
 import { generateOperacionFinalizadaPdf } from "@/pdf/presupuestoPdf";
@@ -46,8 +48,9 @@ export function OperacionFinalizadaPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const hydrated = useRef(false);
-  const selectedVehicleId = vehicleId || workflow.vehicle?.id || "";
-  const hasContext = workflow.hasContext;
+  const flow = useSharedFlow("operacion_finalizada", workflow, values, form.replace);
+  const selectedVehicleId = vehicleId || flow.vehicle?.id || "";
+  const hasContext = Boolean(flow.client && flow.operation);
 
   useEffect(() => {
     let active = true;
@@ -55,30 +58,18 @@ export function OperacionFinalizadaPage() {
     return () => { active = false; };
   }, []);
 
-  // Trae lo que ya se cargo en el Datero (credito, usado, fecha) para no volver a escribirlo.
+  // Lo demas (cliente, auto, precio del boleto, credito, usado) lo completa el flujo compartido.
+  // Aca solo se recupera lo ya guardado y la fecha de la operacion.
   useEffect(() => {
     if (hydrated.current) return;
     if (!workflow.client && !workflow.operation && !workflow.saved) return;
     hydrated.current = true;
+    if (workflow.saved?.data) {
+      form.replace({ ...initialState, ...(workflow.saved.data as Partial<OperacionFinalizadaValues>) });
+      return;
+    }
     const datero = (workflow.operation?.data ?? {}) as Partial<DateroFormValues>;
-    const saved = (workflow.saved?.data ?? {}) as Partial<OperacionFinalizadaValues>;
-    const withCredit = datero.tomaCredito === "si";
-    const installments = withCredit ? parseInstallments(datero.creditoCuotas) : null;
-    const tradeIn = datero.entregaPpa === "si";
-    form.replace({
-      ...initialState,
-      fecha: datero.fechaOperacion || initialState.fecha,
-      nombre: workflow.client?.nombre || datero.nombre || "",
-      dni: workflow.client?.dni || datero.dni || "",
-      telefono: workflow.client?.telefono || workflow.client?.celular || datero.celular || datero.telefono || "",
-      tomaCredito: withCredit ? "si" : "no",
-      creditoTotal: withCredit ? datero.creditoTotal ?? "" : "",
-      creditoNumeroCuotas: installments ? String(installments) : "",
-      cuotasCant: withCredit ? datero.creditoCuotas ?? "" : "",
-      usadoModelo: tradeIn ? [datero.ppaMarca, datero.ppaModelo].filter(Boolean).join(" ") : "",
-      usadoAnio: tradeIn ? datero.ppaAnio ?? "" : "",
-      ...saved,
-    });
+    if (datero.fechaOperacion) form.set("fecha", datero.fechaOperacion);
   }, [form, workflow.client, workflow.operation, workflow.saved]);
 
   useEffect(() => {
@@ -120,36 +111,18 @@ export function OperacionFinalizadaPage() {
     return vehicle;
   };
 
-  /** Usa el cliente del Datero si vino; si no, lo crea en el momento con nombre, DNI y telefono. */
+  /** Usa el cliente y la operacion abiertos; si no hay, los crea con nombre, DNI y telefono. */
   const resolveOperation = async (vehicle: Vehicle): Promise<Ids> => {
     if (ids) return ids;
-    if (workflow.client && workflow.operation) {
-      // El cierre toma el telefono del cliente: si faltaba y se cargo aca, se guarda antes de cerrar.
-      const phone = values.telefono.trim();
-      if (phone && !workflow.client.telefono && !workflow.client.celular) {
-        await saveDateroWorkflow(
-          { ...emptyDatero, ...(workflow.operation.data as Partial<DateroFormValues>), nombre: workflow.client.nombre, dni: workflow.client.dni, celular: phone },
-          { operationId: workflow.operation.id },
-        );
-      }
-      return { clientId: workflow.client.id, operationId: workflow.operation.id };
-    }
-    const saved = await saveDateroWorkflow(
-      {
-        ...emptyDatero,
-        nombre: values.nombre.trim(),
-        dni: values.dni.trim(),
-        celular: values.telefono.trim(),
-        fechaOperacion: values.fecha,
-        dominio: vehicle.licensePlate,
-        tomaCredito: values.tomaCredito,
-        creditoTotal: values.creditoTotal,
-        creditoCuotas: values.cuotasCant || values.creditoNumeroCuotas,
-      },
-      { vehicleId: vehicle.id, createNewOperation: true },
-    );
-    if (saved.persistenceMode !== "remote") throw new Error(saved.warning || "Supabase no está disponible; reintentá cuando haya conexión.");
-    const next = { clientId: saved.client.id, operationId: saved.operation.id };
+    const result = await commitSharedData({
+      docType: "operacion_finalizada",
+      values,
+      context: { client: flow.client, operation: flow.operation, vehicle },
+      vehicleId: vehicle.id,
+    });
+    if (!result) throw new Error("Completá nombre y DNI del comprador.");
+    if (result.persistenceMode !== "remote") throw new Error(result.warning || "Supabase no está disponible; reintentá cuando haya conexión.");
+    const next = { clientId: result.clientId, operationId: result.operationId };
     setIds(next);
     return next;
   };
@@ -234,12 +207,13 @@ export function OperacionFinalizadaPage() {
   };
 
   const withCredit = values.tomaCredito === "si";
-  const presupuestoIds = ids ?? (workflow.client && workflow.operation ? { clientId: workflow.client.id, operationId: workflow.operation.id } : null);
+  const presupuestoIds = ids ?? (flow.client && flow.operation ? { clientId: flow.client.id, operationId: flow.operation.id } : null);
   const presupuestoQuery = presupuestoIds ? `?clientId=${encodeURIComponent(presupuestoIds.clientId)}&operationId=${encodeURIComponent(presupuestoIds.operationId)}` : "";
 
   return (
     <DocumentPage title="Operación finalizada" description="Elegí el auto, confirmá el precio y finalizá. El auto queda como vendido y se arman los seguimientos de postventa.">
-      <DocumentContextBar client={workflow.client} operation={workflow.operation} />
+      <DocumentContextBar client={flow.client} operation={flow.operation} />
+      {flow.banner}
       {workflow.loading ? <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" role="status">Cargando datos guardados…</p> : null}
       {workflow.error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{workflow.error}</p> : null}
 
@@ -312,7 +286,7 @@ export function OperacionFinalizadaPage() {
           </FormGrid>
           <div className="flex flex-wrap justify-end gap-3">
             {presupuestoQuery ? <Link to={`/presupuesto-cliente${presupuestoQuery}`}><Button variant="outline">Generar presupuesto</Button></Link> : null}
-            {hasContext ? <Button variant="outline" disabled={loading} onClick={() => void workflow.save(values as unknown as Record<string, unknown>)}>Guardar borrador</Button> : null}
+            {hasContext ? <Button variant="outline" disabled={loading} onClick={() => void flow.commit(values, { documentId: workflow.saved?.id, status: "borrador" })}>Guardar borrador</Button> : null}
           </div>
         </div>
       </details>
