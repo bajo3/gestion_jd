@@ -5,6 +5,8 @@ import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { useSharedFlow } from "@/hooks/useSharedFlow";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
+import { DniScanButton } from "@/components/documents/DniScanButton";
+import { readDniFromImage } from "@/lib/dniBarcode";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
@@ -56,6 +58,12 @@ export function FormularioClientePage() {
       {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       <FormSection title="Datos del cliente">
+        <DniScanButton
+          onRead={(dni) => {
+            form.set("dni", dni.dni);
+            if (dni.cuil) form.set("cuil", dni.cuil);
+          }}
+        />
         <FormGrid columns="md:grid-cols-3">
           <FormField label="DNI">
             <Input value={values.dni} onChange={(event) => form.set("dni", event.target.value)} />
@@ -84,7 +92,24 @@ export function FormularioClientePage() {
       <FormSection title="Documentacion adjunta">
         <FormGrid columns="md:grid-cols-2">
           <FormField label="DNI frente">
-            <Input type="file" accept="image/*" onChange={(event) => form.set("dniFrente", event.target.files?.[0] ?? null)} />
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                form.set("dniFrente", file);
+                // Con la foto del frente ya cargada, el numero y el CUIL se leen del codigo de barras.
+                if (file) {
+                  void readDniFromImage(file)
+                    .then((dni) => {
+                      if (!dni) return;
+                      form.set("dni", dni.dni);
+                      if (dni.cuil) form.set("cuil", dni.cuil);
+                    })
+                    .catch(() => undefined);
+                }
+              }}
+            />
           </FormField>
           <FormField label="DNI dorso">
             <Input type="file" accept="image/*" onChange={(event) => form.set("dniDorso", event.target.files?.[0] ?? null)} />

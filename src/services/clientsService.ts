@@ -355,6 +355,55 @@ export async function listFinalizedSales(): Promise<FinalizedSale[]> {
     .sort((a, b) => b.saleDate.localeCompare(a.saleDate));
 }
 
+export type OpenQuote = { document: ClientDocument; client: Client | null; operation: ClientOperation | null };
+
+/** Presupuestos entregados cuya operacion todavia no se cerro: son ventas para seguir. */
+export async function listOpenQuotes(): Promise<OpenQuote[]> {
+  let documents = localDocuments().filter((item) => item.documentType === "presupuesto_cliente");
+  let operations = localOperations();
+  let clients = localClients();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: remoteDocuments } = await supabase
+        .from("gestion_jd_documents")
+        .select("*")
+        .eq("app_source", APP_SOURCE)
+        .eq("document_type", "presupuesto_cliente")
+        .order("updated_at", { ascending: false })
+        .limit(100);
+      if (remoteDocuments) {
+        documents = remoteDocuments.map(mapRemoteDocument);
+        const operationIds = [...new Set(documents.map((item) => item.operationId))];
+        const clientIds = [...new Set(documents.map((item) => item.clientId))];
+        const [{ data: remoteOperations }, { data: remoteClients }] = await Promise.all([
+          supabase.from("gestion_jd_operations").select("*").eq("app_source", APP_SOURCE).in("id", operationIds),
+          supabase.from("gestion_jd_clients").select("*").eq("app_source", APP_SOURCE).in("id", clientIds),
+        ]);
+        if (remoteOperations) operations = remoteOperations.map(mapRemoteOperation);
+        if (remoteClients) clients = remoteClients.map(mapRemoteClient);
+      }
+    } catch {
+      // Sin conexion se usa lo guardado en este equipo.
+    }
+  }
+
+  // Un presupuesto por operacion: el ultimo que se guardo.
+  const latest = new Map<string, ClientDocument>();
+  for (const document of documents) {
+    const current = latest.get(document.operationId);
+    if (!current || document.updatedAt > current.updatedAt) latest.set(document.operationId, document);
+  }
+
+  return [...latest.values()]
+    .map((document) => ({
+      document,
+      client: clients.find((item) => item.id === document.clientId) ?? null,
+      operation: operations.find((item) => item.id === document.operationId) ?? null,
+    }))
+    .filter((quote) => quote.operation?.status !== "finalizada" && quote.operation?.status !== "cancelada");
+}
+
 export function documentTypeLabel(type: DocumentType) {
   return { datero: "Datero", recibo: "Recibo", autorizacion: "Autorización", operacion_finalizada: "Operación finalizada", compra_venta: "Boleto compra-venta", presupuesto_cliente: "Presupuesto", formulario_cliente: "Formulario cliente" }[type];
 }

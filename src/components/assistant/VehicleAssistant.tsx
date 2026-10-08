@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Bot, Check, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,22 @@ import {
   type AssistantDraft,
 } from "@/services/vehicleAssistantService";
 import {
+  buildLeadDraft,
+  describeLeadDraft,
+  looksLikeLead,
+  saveLeadDraft,
+  type LeadDraft,
+} from "@/services/leadAgentService";
+import {
+  describeSalePlan,
+  getSaleMissing,
+  getSaleWarnings,
+  isSaleDraft,
+  looksLikeSale,
+  runSalePlan,
+} from "@/services/saleAgentService";
+import type { SaleSyncLink } from "@/services/saleSyncService";
+import {
   askWorkspaceAssistant,
   isWorkspaceQuestion,
   type WorkspaceAssistantAction,
@@ -27,14 +43,16 @@ type ChatMessage = {
   id: string;
   role: "assistant" | "user";
   content: string;
+  /** Accesos para seguir despues de una accion (ej: los documentos de la venta recien cerrada). */
+  links?: SaleSyncLink[];
 };
 
 function messageId() {
   return `assistant-message-${Date.now()}-${Math.round(Math.random() * 100000)}`;
 }
 
-function assistantMessage(content: string): ChatMessage {
-  return { id: messageId(), role: "assistant", content };
+function assistantMessage(content: string, links?: SaleSyncLink[]): ChatMessage {
+  return { id: messageId(), role: "assistant", content, links };
 }
 
 function userMessage(content: string): ChatMessage {
@@ -46,6 +64,15 @@ function vehicleLabel(vehicle: Vehicle) {
 }
 
 function buildDraftMessage(draft: AssistantDraft) {
+  if (isSaleDraft(draft)) {
+    const steps = describeSalePlan(draft).map((step, index) => `${index + 1}. ${step}`);
+    const missing = getSaleMissing(draft);
+    const closing = missing.length
+      ? `Me falta: ${missing.join(", ")}. Decímelo y lo sumo.`
+      : "Está todo. Confirmá abajo y lo hago de una.";
+    return `Entendí una venta. Al confirmar hago esto:\n${steps.join("\n")}\n${closing}`;
+  }
+
   const summary = buildAssistantSummary(draft);
   const missing = getMissingAssistantFields(draft);
 
@@ -72,23 +99,32 @@ export function VehicleAssistant() {
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<AssistantDraft | null>(null);
   const [workspaceAction, setWorkspaceAction] = useState<WorkspaceAssistantAction | null>(null);
+  const [leadDraft, setLeadDraft] = useState<LeadDraft | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     assistantMessage(
-      "Decime una operacion o pregunta de gestion. Ejemplos: vendido Ford Ecosport 2017..., que lead falta contestar, resumen del mes, o haceme un boleto compra venta.",
+      "Decime una venta, un lead o una consulta. Por ejemplo: vendí la Amarok AB123CD a Juan Pérez, DNI 30111222, cel 3434567890, 52 millones en 24 cuotas. O: lead María López 2494123456 pregunta por la Tera. También: qué lead falta contestar, resumen del mes o haceme un boleto.",
     ),
   ]);
 
-  const missing = useMemo(() => (draft ? getMissingAssistantFields(draft) : []), [draft]);
-  const summary = useMemo(() => (draft ? buildAssistantSummary(draft) : []), [draft]);
-  const canApply = Boolean(
-    (draft?.targetVehicleId || (draft?.values.brand && draft.values.model)) &&
-      !(draft.candidates.length > 1 && !draft.targetVehicleId),
+  const saleMode = isSaleDraft(draft);
+  const missing = useMemo(
+    () => (draft ? (isSaleDraft(draft) ? getSaleMissing(draft) : getMissingAssistantFields(draft)) : []),
+    [draft],
   );
+  const salePlan = useMemo(() => (draft && isSaleDraft(draft) ? describeSalePlan(draft) : []), [draft]);
+  const saleWarnings = useMemo(() => (draft && isSaleDraft(draft) ? getSaleWarnings(draft) : []), [draft]);
+  const summary = useMemo(() => (draft ? buildAssistantSummary(draft) : []), [draft]);
+  const canApply = saleMode
+    ? missing.length === 0
+    : Boolean(
+        (draft?.targetVehicleId || (draft?.values.brand && draft.values.model)) &&
+          !(draft.candidates.length > 1 && !draft.targetVehicleId),
+      );
 
-  const addAssistantReply = (content: string) => {
-    setMessages((current) => [...current, assistantMessage(content)]);
+  const addAssistantReply = (content: string, links?: SaleSyncLink[]) => {
+    setMessages((current) => [...current, assistantMessage(content, links)]);
   };
 
   const handleSubmit = async () => {
@@ -100,7 +136,17 @@ export function VehicleAssistant() {
     setMessages((current) => [...current, userMessage(text)]);
 
     try {
-      if (isWorkspaceQuestion(text) && !draft) {
+      // "lead Juan Perez 2494... pregunta por la Amarok": se carga sin abrir la pantalla de Leads.
+      if (looksLikeLead(text) && !draft) {
+        const nextLead = await buildLeadDraft(text);
+        setLeadDraft(nextLead);
+        setWorkspaceAction(null);
+        addAssistantReply(describeLeadDraft(nextLead));
+        return;
+      }
+
+      // Una venta siempre va por el flujo de venta, aunque nombre "patente" o "documento".
+      if (isWorkspaceQuestion(text) && !draft && !looksLikeSale(text)) {
         const action = await askWorkspaceAssistant(text);
         if (action.actionType === "vehicleDraft") {
           const nextDraft = await buildAssistantDraft(text, undefined);
@@ -144,6 +190,22 @@ export function VehicleAssistant() {
 
     setApplying(true);
     try {
+      if (isSaleDraft(draft)) {
+        const sale = await runSalePlan(draft);
+        const lines = sale.steps.map((step) => `${step.ok ? "✓" : "✗"} ${step.label}: ${step.detail}`);
+        if (sale.ok) {
+          setDraft(null);
+          addAssistantReply(`Venta cerrada.\n${lines.join("\n")}\nLos documentos ya tienen los datos cargados:`, [
+            ...sale.links,
+            ...(sale.vehicle ? [{ to: `/autos/${sale.vehicle.id}`, label: "Ver el auto" }] : []),
+          ]);
+        } else {
+          // Se deja el borrador para corregir lo que falto y volver a confirmar.
+          addAssistantReply(`No pude terminar la venta.\n${lines.join("\n")}\nCorregí eso y confirmá de nuevo.`);
+        }
+        return;
+      }
+
       const result = await applyAssistantDraft(draft);
       const action = result.mode === "update" ? "actualizado" : "creado";
       setDraft(null);
@@ -156,8 +218,26 @@ export function VehicleAssistant() {
     }
   };
 
+  const confirmLead = async () => {
+    if (!leadDraft || applying) return;
+
+    setApplying(true);
+    try {
+      const saved = await saveLeadDraft(leadDraft);
+      if (saved) {
+        setLeadDraft(null);
+        addAssistantReply("Lead cargado como Sin contactar. Ya aparece en Qué hacer hoy.", [{ to: "/leads", label: "Abrir Leads" }]);
+      } else {
+        addAssistantReply("No pude cargar el lead. Revisá la conexión e intentá otra vez.");
+      }
+    } finally {
+      setApplying(false);
+    }
+  };
+
   const resetDraft = () => {
     setDraft(null);
+    setLeadDraft(null);
     setWorkspaceAction(null);
     addAssistantReply("Borrador limpio. Mandame la proxima operacion.");
   };
@@ -222,6 +302,20 @@ export function VehicleAssistant() {
                 )}
               >
                 {message.content}
+                {message.links?.length ? (
+                  <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                    {message.links.map((link) => (
+                      <Link
+                        key={link.to}
+                        to={link.to}
+                        onClick={() => setOpen(false)}
+                        className="text-sm font-semibold text-slate-900 underline underline-offset-2"
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </span>
+                ) : null}
               </div>
             ))}
             {loading ? (
@@ -236,12 +330,24 @@ export function VehicleAssistant() {
             <div className="border-t border-slate-200 bg-white px-4 py-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase text-slate-500">Borrador</p>
+                  <p className="text-xs font-semibold uppercase text-slate-500">{saleMode ? "Venta para cerrar" : "Borrador"}</p>
                   <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-                    {draft.mode === "update" ? "Actualizar" : "Crear"} - {draft.source === "glm-5.2" ? "GLM 5.2" : "Local"}
+                    {saleMode ? "Venta" : draft.mode === "update" ? "Actualizar" : "Crear"} - {draft.source === "glm-5.2" ? "GLM 5.2" : "Local"}
                   </span>
                 </div>
-                {summary.length ? (
+                {saleMode ? (
+                  <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-700">
+                    {salePlan.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                ) : null}
+                {saleWarnings.map((warning) => (
+                  <p key={warning} className="mt-2 text-xs text-slate-500">
+                    {warning}
+                  </p>
+                ))}
+                {!saleMode && summary.length ? (
                   <div className="mt-2 space-y-1 text-xs text-slate-700">
                     {summary.slice(0, 5).map((item) => (
                       <p key={item}>{item}</p>
@@ -268,10 +374,39 @@ export function VehicleAssistant() {
                 <div className="mt-3 flex gap-2">
                   <Button className="flex-1" disabled={!canApply || applying} onClick={applyDraft}>
                     {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                    Aplicar
+                    {saleMode ? "Confirmar y cerrar la venta" : "Aplicar"}
                   </Button>
                   <Button variant="ghost" onClick={resetDraft}>
                     Limpiar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {leadDraft ? (
+            <div className="border-t border-slate-200 bg-white px-4 py-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase text-slate-500">Lead para cargar</p>
+                <div className="mt-2 space-y-1 text-xs text-slate-700">
+                  <p>{leadDraft.input.nombre || "Sin nombre"}{leadDraft.input.telefono ? ` · ${leadDraft.input.telefono}` : ""}</p>
+                  {leadDraft.input.auto ? <p>Consulta por: {leadDraft.input.auto}</p> : null}
+                </div>
+                {leadDraft.duplicate ? (
+                  <p className="mt-2 text-xs font-medium text-amber-700">
+                    Ya hay un lead con ese teléfono: {leadDraft.duplicate.nombre} ({leadDraft.duplicate.estado}).
+                  </p>
+                ) : null}
+                {leadDraft.missing.length ? (
+                  <p className="mt-2 text-xs font-medium text-amber-700">Falta: {leadDraft.missing.join(" y ")}.</p>
+                ) : null}
+                <div className="mt-3 flex gap-2">
+                  <Button className="flex-1" disabled={applying || !leadDraft.input.nombre} onClick={() => void confirmLead()}>
+                    {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                    {leadDraft.duplicate ? "Cargar igual" : "Cargar lead"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setLeadDraft(null)}>
+                    Descartar
                   </Button>
                 </div>
               </div>
@@ -324,7 +459,7 @@ export function VehicleAssistant() {
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
               <MessageCircle className="h-3.5 w-3.5" />
-              <span>Puede responder, abrir secciones y preparar documentos.</span>
+              <span>Cierra ventas completas, responde, abre secciones y prepara documentos.</span>
             </div>
           </div>
         </section>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,12 @@ import { FormField } from "@/components/shared/FormField";
 import { Card, CardContent } from "@/components/ui/card";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
+import { DniScanButton } from "@/components/documents/DniScanButton";
 import { useSharedFlow } from "@/hooks/useSharedFlow";
 import { commitSharedData } from "@/services/sharedDataService";
+import { listPriceListItems } from "@/services/priceListService";
+import { highlightPriceListItem, pickConfidentMatch, priceListItemLabel, rankPriceListMatches } from "@/services/priceListSaleLink";
+import type { PriceListItem } from "@/types/priceList";
 import { finalizeSaleAtomic, markLocalOperationFinalized, saveClientDocument } from "@/services/clientsService";
 import { emptyVehicleInput } from "@/services/saleSyncService";
 import { normalizePlate } from "@/services/documentsService";
@@ -47,6 +51,10 @@ export function OperacionFinalizadaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [priceItems, setPriceItems] = useState<PriceListItem[]>([]);
+  // null = la fila que mejor coincide; "" = no pintar ninguna; un id = la que eligio la persona.
+  const [priceRowChoice, setPriceRowChoice] = useState<string | null>(null);
+  const [paintedMessage, setPaintedMessage] = useState("");
   const hydrated = useRef(false);
   const flow = useSharedFlow("operacion_finalizada", workflow, values, form.replace);
   const selectedVehicleId = vehicleId || flow.vehicle?.id || "";
@@ -55,6 +63,8 @@ export function OperacionFinalizadaPage() {
   useEffect(() => {
     let active = true;
     listVehicles().then((next) => { if (active) setVehicles(next); }).catch(() => { if (active) setError("No se pudo cargar el inventario."); });
+    // La lista de precios es opcional: si no carga, la venta se cierra igual.
+    listPriceListItems().then((next) => { if (active) setPriceItems(next); }).catch(() => undefined);
     return () => { active = false; };
   }, []);
 
@@ -127,6 +137,22 @@ export function OperacionFinalizadaPage() {
     return next;
   };
 
+  // A que fila de la lista de precios corresponde el auto: se pinta de amarillo al cerrar la venta.
+  const priceMatches = useMemo(() => {
+    const selected = vehicles.find((item) => item.id === selectedVehicleId);
+    const car = isNewVehicle
+      ? { brand: newVehicle.brand, model: newVehicle.model }
+      : selected
+        ? { brand: selected.brand, model: selected.model, year: selected.year, kilometers: selected.kilometers, color: selected.color }
+        : null;
+    return car ? rankPriceListMatches(priceItems, car) : [];
+  }, [vehicles, selectedVehicleId, isNewVehicle, newVehicle.brand, newVehicle.model, priceItems]);
+  const priceRowId = priceRowChoice ?? pickConfidentMatch(priceMatches)?.id ?? "";
+  const otherPriceItems = useMemo(() => {
+    const matched = new Set(priceMatches.map((match) => match.item.id));
+    return priceItems.filter((item) => item.sheetRow && !matched.has(item.id));
+  }, [priceItems, priceMatches]);
+
   const finalize = async () => {
     setError("");
     setNotice("");
@@ -187,6 +213,12 @@ export function OperacionFinalizadaPage() {
         data: values as unknown as Record<string, unknown>,
       });
       if (saved.warning) setNotice(saved.warning);
+      const priceRow = priceItems.find((item) => item.id === priceRowId);
+      if (priceRow) {
+        const painted = await highlightPriceListItem(priceRow);
+        if (painted.ok) setPaintedMessage(painted.message);
+        else setNotice((current) => [current, painted.message].filter(Boolean).join(" "));
+      }
       setFinalized(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No se pudo finalizar la operación.");
@@ -230,7 +262,23 @@ export function OperacionFinalizadaPage() {
             {!hasContext || !values.telefono ? <FormField label="Teléfono (para la postventa)"><Input value={values.telefono} onChange={(event) => form.set("telefono", event.target.value)} placeholder="549..." /></FormField> : null}
             <FormField label="¿Toma crédito?"><Select value={values.tomaCredito} onChange={(event) => setCreditEnabled(event.target.value as "si" | "no")}><option value="no">No</option><option value="si">Sí</option></Select></FormField>
             {withCredit ? <FormField label="Cantidad de cuotas"><Input type="number" min="1" step="1" value={values.creditoNumeroCuotas} onChange={(event) => form.set("creditoNumeroCuotas", event.target.value)} /></FormField> : null}
+            {priceItems.length && selectedVehicleId ? <FormField label="Fila a pintar de amarillo en la lista de precios">
+              <Select value={priceRowId} onChange={(event) => setPriceRowChoice(event.target.value)}>
+                <option value="">No pintar ninguna</option>
+                {priceMatches.length ? <optgroup label="Parecidos al auto vendido">{priceMatches.map((match) => <option key={match.item.id} value={match.item.id}>{priceListItemLabel(match.item)}</option>)}</optgroup> : null}
+                <optgroup label="Resto de la lista">{otherPriceItems.map((item) => <option key={item.id} value={item.id}>{priceListItemLabel(item)}</option>)}</optgroup>
+              </Select>
+            </FormField> : null}
           </FormGrid>
+          {!hasContext ? (
+            <DniScanButton
+              label="Leer el DNI del comprador desde una foto"
+              onRead={(dni) => {
+                form.set("nombre", dni.nombreCompleto);
+                form.set("dni", dni.dni);
+              }}
+            />
+          ) : null}
           {isNewVehicle ? <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm text-amber-900">Se agrega al Historial de Autos con estos datos. Lo que falte queda marcado en rojo en Ventas para completarlo después.</p>
             <FormGrid>
@@ -242,7 +290,7 @@ export function OperacionFinalizadaPage() {
           {withCredit ? <p className="text-sm text-slate-500">El crédito arranca en la fecha de venta y vence el día {dayOfMonth(values.creditoFechaInicio || values.fecha) || "—"} de cada mes. Podés cambiarlo en “Más datos”.</p> : null}
 
           {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
-          {finalized ? <p className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800" role="status"><CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />Venta registrada: el auto quedó como vendido y se crearon los seguimientos de postventa.</p> : null}
+          {finalized ? <p className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800" role="status"><CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /><span>Venta registrada: el auto quedó como vendido y se crearon los seguimientos de postventa.{paintedMessage ? ` ${paintedMessage}` : ""}</span></p> : null}
           {notice ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</p> : null}
 
           <div className="flex flex-wrap items-center justify-end gap-3">

@@ -122,6 +122,40 @@ async function callSheets(path, { method = "GET", body, token }) {
   return payload;
 }
 
+/** Amarillo de resaltado: el mismo que deja Google Sheets con el balde amarillo. */
+const HIGHLIGHT_COLOR = { red: 1, green: 1, blue: 0 };
+
+/** Un fondo "amarillo" a ojo: mucho rojo y verde, poco azul (cubre el amarillo pleno y los claros). */
+function isYellow(color) {
+  if (!color) return false;
+  const red = color.red ?? 0;
+  const green = color.green ?? 0;
+  const blue = color.blue ?? 0;
+  return red >= 0.9 && green >= 0.8 && blue <= 0.65;
+}
+
+/** La hoja con la que se trabaja: la configurada por nombre o, si no, la primera. */
+async function getSheet(token, sheetName, { withColors = false } = {}) {
+  const fields = withColors
+    ? "sheets(properties(sheetId,title),data(rowData(values(effectiveFormat(backgroundColor)))))"
+    : "sheets(properties(sheetId,title))";
+  const ranges = withColors ? `&ranges=${encodeURIComponent(buildRange(sheetName, `${FIRST_COLUMN}:${FIRST_COLUMN}`))}` : "";
+  const result = await callSheets(`?fields=${encodeURIComponent(fields)}${ranges}`, { token });
+  const sheets = Array.isArray(result?.sheets) ? result.sheets : [];
+  return (sheetName && sheets.find((sheet) => sheet?.properties?.title === sheetName)) || sheets[0] || null;
+}
+
+/** Filas (1 = primera) pintadas de amarillo en la columna A. */
+async function readHighlightedRows(token, sheetName) {
+  const sheet = await getSheet(token, sheetName, { withColors: true });
+  const rowData = sheet?.data?.[0]?.rowData ?? [];
+  const rows = [];
+  rowData.forEach((row, index) => {
+    if (isYellow(row?.values?.[0]?.effectiveFormat?.backgroundColor)) rows.push(index + 1);
+  });
+  return rows;
+}
+
 /** "'Hoja 1'!A61:L61" -> 61 */
 function parseUpdatedRow(updatedRange) {
   const match = /![A-Z]+(\d+)/.exec(updatedRange || "");
@@ -137,6 +171,7 @@ function parseUpdatedRow(updatedRange) {
  * - append: agrega una fila al final y devuelve su numero.
  * - clear:  vacia la fila sin borrarla, para no correr las filas de abajo
  *   (eso invalidaria el sheetRow guardado del resto de los vehiculos).
+ * - highlight: pinta de amarillo (o despinta) la fila `sheetRow`. No toca los valores.
  */
 export async function syncPriceListToSheet(payload) {
   if (!isSheetsSyncConfigured()) {
@@ -156,9 +191,17 @@ export async function syncPriceListToSheet(payload) {
       { token },
     );
 
+    // El amarillo es informacion extra: si no se puede leer, la lista funciona igual.
+    let highlightedRows = [];
+    try {
+      highlightedRows = await readHighlightedRows(token, sheetName);
+    } catch {
+      highlightedRows = [];
+    }
+
     // Google recorta las filas y celdas vacias del final: se devuelven tal cual
     // y el cliente normaliza, que es donde vive el formato de la planilla.
-    return { ok: true, action, rows: Array.isArray(result?.values) ? result.values : [] };
+    return { ok: true, action, rows: Array.isArray(result?.values) ? result.values : [], highlightedRows };
   }
 
   if (action === "append") {
@@ -183,6 +226,40 @@ export async function syncPriceListToSheet(payload) {
     });
 
     return { ok: true, action, sheetRow };
+  }
+
+  if (action === "highlight") {
+    const sheet = await getSheet(token, sheetName);
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+      return { ok: false, error: "No se encontro la hoja de la planilla." };
+    }
+
+    const on = body.on !== false;
+    await callSheets(":batchUpdate", {
+      method: "POST",
+      token,
+      body: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: sheetRow - 1,
+                endRowIndex: sheetRow,
+                startColumnIndex: 0,
+                endColumnIndex: COLUMN_COUNT,
+              },
+              // Despintar es dejar el fondo sin definir, no pintarlo de blanco.
+              cell: { userEnteredFormat: on ? { backgroundColor: HIGHLIGHT_COLOR } : {} },
+              fields: "userEnteredFormat.backgroundColor",
+            },
+          },
+        ],
+      },
+    });
+
+    return { ok: true, action, sheetRow, on };
   }
 
   if (action !== "update") {

@@ -9,6 +9,8 @@ export type AssistantDraft = {
   notes: string[];
   candidates: Vehicle[];
   source?: "glm-5.2" | "local";
+  /** DNI del comprador: hace falta para crear el cliente al cerrar una venta. */
+  buyerDni?: string;
 };
 
 export type AssistantApplyResult = {
@@ -143,7 +145,7 @@ function parseDate(text: string, keywords: string[]) {
 
 function parseStatus(text: string): VehicleStatus | undefined {
   const normalized = normalizeText(text);
-  if (/\b(vendido|vendida|se vendio|venta cerrada)\b/.test(normalized)) return "vendido";
+  if (/\b(vendido|vendida|vendi|vendimos|se vendio|venta cerrada)\b/.test(normalized)) return "vendido";
   if (/\b(reservado|reservada|senado|senada|señado|señada)\b/.test(text.toLowerCase())) return "reservado";
   if (/\b(publicado|publicada)\b/.test(normalized)) return "publicado";
   if (/\b(egresado|egresada|entregado|entregada)\b/.test(normalized)) return "egresado";
@@ -186,12 +188,35 @@ function parseLicensePlate(text: string) {
 
 function parseBuyerName(text: string) {
   const match = text.match(
-    /\b(?:comprador|cliente|vendido a|vendida a|a nombre de)\s*:?\s+(.+?)(?=\s+(?:tel|telefono|cel|celular|whatsapp|wsp|credito|financiado|cuotas|patente|dominio|fecha|entrega|egreso)\b|$)/i,
+    /\b(?:comprador|cliente|vendido a|vendida a|a nombre de)\s*:?\s+(.+?)(?=\s*(?:,|\$|\d)|\s+(?:tel|telefono|cel|celular|whatsapp|wsp|credito|financiado|cuotas|patente|dominio|fecha|entrega|egreso|dni|documento|doc|precio|valor|por|en|con)\b|$)/i,
   );
 
-  if (!match) return "";
+  if (match) return titleCase(match[1].replace(/[.,;]+$/g, "").trim());
 
-  return titleCase(match[1].replace(/[.,;]+$/g, "").trim());
+  // Hablado se dice "vendi la amarok a Juan Perez": el nombre viene despues de la "a".
+  const spoken = text.match(
+    // Sin \b al final: "vendí" termina en una letra con acento y ahi \b no corta.
+    /\b(?:vend[ií]|vendido|vendida|vendimos|se vendi[oó])(?=\s).*?\s+a\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){1,3}?)(?=\s*(?:,|\$|\d|$)|\s+(?:tel|telefono|cel|celular|whatsapp|wsp|credito|financiado|cuotas|patente|dominio|fecha|dni|documento|doc|precio|valor|por|en|con|de contado)\b)/i,
+  );
+  if (!spoken) return "";
+
+  const firstWord = spoken[1].trim().split(/\s+/)[0].toLowerCase();
+  // "a la", "a nombre", "a un": no es una persona.
+  if (["la", "el", "los", "las", "un", "una", "nombre", "credito", "cuenta"].includes(firstWord)) return "";
+  return titleCase(spoken[1].trim());
+}
+
+/**
+ * Sin marca ni patente ("vendimos la duster"): busca en el stock los autos cuyo modelo se
+ * nombra en el mensaje. Solo mira los que todavia se pueden vender.
+ */
+function findCandidatesByModelWord(vehicles: Vehicle[], text: string) {
+  const words = new Set(normalizeText(text).split(" "));
+  return vehicles.filter((vehicle) => {
+    if (vehicle.status === "vendido" || vehicle.status === "archivado" || vehicle.status === "egresado") return false;
+    const modelWord = normalizeText(vehicle.model).split(" ")[0] ?? "";
+    return modelWord.length >= 2 && words.has(modelWord);
+  });
 }
 
 function parsePhone(text: string) {
@@ -199,6 +224,12 @@ function parsePhone(text: string) {
   if (!explicit) return "";
 
   return explicit[1].replace(/[^\d+]/g, "");
+}
+
+/** "DNI 30.111.222" / "documento: 30111222" -> "30111222" */
+function parseDni(text: string) {
+  const match = text.match(/\b(?:dni|documento|doc)\b\s*(?:n(?:ro|°|º|o)?\.?)?\s*:?\s*(\d{1,2}\.?\d{3}\.?\d{3})\b/i);
+  return match ? match[1].replace(/\D/g, "") : "";
 }
 
 function parseColor(text: string) {
@@ -237,6 +268,12 @@ function parsePatch(text: string): { values: Partial<VehicleInput>; notes: strin
     text.match(/\$\s*([\d.,]+)/) ??
     text.match(/\b(?:precio|valor|venta)\s*:?\s*\$?\s*([\d.,]{5,})/i);
   if (priceMatch) values.salePrice = parseNumber(priceMatch[1]);
+
+  // "52 millones", "52,5 palos": como se dice un precio hablando.
+  const millionsMatch = normalized.match(/\b(\d{1,3}(?:[.,]\d{1,3})?)\s*(?:millones|millon|palos|palo)\b/);
+  if (millionsMatch && !values.salePrice) {
+    values.salePrice = Math.round(Number(millionsMatch[1].replace(",", ".")) * 1_000_000);
+  }
 
   const buyerName = parseBuyerName(text);
   if (buyerName) values.buyerName = buyerName;
@@ -328,6 +365,7 @@ type GlmAssistantResponse = {
   ok: boolean;
   model?: string;
   values?: Partial<VehicleInput>;
+  buyerDni?: string;
   targetVehicleId?: string;
   notes?: string[];
   assistantText?: string;
@@ -448,7 +486,15 @@ export async function buildAssistantDraft(text: string, currentDraft?: Assistant
   const explicitTarget = requestedTargetId
     ? vehicles.find((vehicle) => vehicle.id === requestedTargetId)
     : undefined;
-  const candidates = explicitTarget ? [explicitTarget] : findCandidates(vehicles, values);
+  let candidates = explicitTarget ? [explicitTarget] : findCandidates(vehicles, values);
+  // Si no se nombro marca ni patente, alcanza con el modelo cuando hay stock que coincide.
+  if (!candidates.length && !values.licensePlate && !values.brand && !currentDraft?.targetVehicleId) {
+    candidates = findCandidatesByModelWord(vehicles, text);
+  }
+  // Un mensaje que solo completa datos ("dni 30111222") no borra los autos que ya se habian encontrado.
+  if (!candidates.length && currentDraft?.candidates.length && !currentDraft.targetVehicleId) {
+    candidates = currentDraft.candidates;
+  }
   const target = candidates.length === 1 ? candidates[0] : undefined;
   const aiNotes = glmParsed?.assistantText ? [glmParsed.assistantText] : [];
   const fallbackNote = skipGlm
@@ -468,6 +514,7 @@ export async function buildAssistantDraft(text: string, currentDraft?: Assistant
     notes,
     candidates,
     source: glmParsed ? "glm-5.2" : "local",
+    buyerDni: parseDni(text) || glmParsed?.buyerDni || currentDraft?.buyerDni || "",
   };
 }
 
@@ -509,7 +556,7 @@ export function buildAssistantSummary(draft: AssistantDraft) {
     values.licensePlate ? `Patente: ${values.licensePlate}` : "",
     values.kilometers ? `Kilometros: ${values.kilometers.toLocaleString("es-AR")}` : "",
     values.salePrice ? `Precio venta: ${values.salePrice.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })}` : "",
-    values.buyerName ? `Comprador: ${values.buyerName}` : "",
+    values.buyerName ? `Comprador: ${values.buyerName}${draft.buyerDni ? ` (DNI ${draft.buyerDni})` : ""}` : "",
     values.buyerPhone ? `Telefono: ${values.buyerPhone}` : "",
     values.exitDate ? `Egreso: ${values.exitDate}` : "",
     values.hasCredit

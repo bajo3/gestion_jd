@@ -1,5 +1,6 @@
 import {
   isArchivedLeadStatus,
+  LEAD_STATUS_LABELS,
   leadStatusLabel,
   parseLeadStatus,
   PENDING_LEAD_STATUSES,
@@ -101,6 +102,52 @@ export async function listAssistantLeads(): Promise<AssistantLead[]> {
 
   if (error || !data) return [];
   return (data as LeadRow[]).map(normalizeLead);
+}
+
+function phoneTail(phone: string) {
+  return phone.replace(/\D/g, "").slice(-10);
+}
+
+/** Un lead activo con el mismo telefono (los ultimos 10 digitos), para no cargarlo dos veces. */
+export function findLeadByPhone(leads: AssistantLead[], phone: string) {
+  const tail = phoneTail(phone);
+  if (tail.length < 8) return null;
+  return leads.find((lead) => phoneTail(lead.telefono) === tail) ?? null;
+}
+
+export type NewLeadInput = { nombre: string; telefono: string; auto: string; notas?: string };
+
+/** Alta de un lead como "sin contactar", igual que si se cargara desde la pantalla de Leads. */
+export async function createLead(input: NewLeadInput) {
+  if (!isSupabaseConfigured || !supabase) return false;
+
+  const { error } = await supabase.from("meli_leads").insert({
+    lead_key: `lead_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    source: "manual",
+    buyer_name: input.nombre.trim(),
+    item_title: input.auto.trim(),
+    phone: input.telefono.trim(),
+    status: LEAD_STATUS_LABELS.sin_contactar,
+    date_created: new Date().toISOString(),
+    raw_json: { notas: input.notas?.trim() ?? "", fecha_contacto: "" },
+  });
+  return !error;
+}
+
+/** Deja el lead como contactado hoy, conservando el resto de sus datos. */
+export async function markLeadContacted(leadId: string) {
+  if (!isSupabaseConfigured || !supabase) return false;
+
+  const { data } = await supabase.from("meli_leads").select("raw_json").eq("lead_key", leadId).maybeSingle();
+  const raw = data?.raw_json && typeof data.raw_json === "object" ? (data.raw_json as Record<string, unknown>) : {};
+  const { error } = await supabase
+    .from("meli_leads")
+    .update({
+      status: LEAD_STATUS_LABELS.contactado,
+      raw_json: { ...raw, fecha_contacto: new Date().toISOString().slice(0, 10) },
+    })
+    .eq("lead_key", leadId);
+  return !error;
 }
 
 export function summarizeLeads(leads: AssistantLead[]) {

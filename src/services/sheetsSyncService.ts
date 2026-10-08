@@ -1,6 +1,6 @@
 const SHEETS_SYNC_URL = "/api/sheets-sync";
 
-export type SheetSyncAction = "read" | "update" | "append" | "clear";
+export type SheetSyncAction = "read" | "update" | "append" | "clear" | "highlight";
 
 export type SheetSyncResult = {
   ok: boolean;
@@ -9,6 +9,8 @@ export type SheetSyncResult = {
   sheetRow?: number | null;
   /** Solo en "read": la planilla entera, sin normalizar. */
   rows?: string[][];
+  /** Solo en "read": filas pintadas de amarillo en la planilla. */
+  highlightedRows?: number[];
   error?: string;
 };
 
@@ -17,6 +19,8 @@ type SheetSyncPayload = {
   sheetRow?: number | null;
   /** Fila ya formateada por el cliente (columnas A..L). */
   values?: string[];
+  /** Solo en "highlight": true pinta la fila de amarillo, false la despinta. */
+  on?: boolean;
 };
 
 /**

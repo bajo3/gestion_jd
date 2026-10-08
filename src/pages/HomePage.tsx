@@ -1,6 +1,7 @@
 import { CarFront, ExternalLink, FileStack, Inbox, Search, ShieldCheck, WalletCards } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { TodayPanel } from "@/components/today/TodayPanel";
 import { Card, CardContent } from "@/components/ui/card";
 
 const documents = [
@@ -33,6 +34,8 @@ export function HomePage() {
         title="Jesus Diaz Automotores"
         description="Acceso rapido a documentos, historial de autos y herramientas internas."
       />
+
+      <TodayPanel />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {documents.map((item) => {

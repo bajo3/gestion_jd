@@ -19,6 +19,7 @@ import {
   listPriceListItems,
   pullSheetChanges,
   removeItemsFromApp,
+  setItemHighlight,
   resolveConflictWithSheet,
   resolveConflictWithWeb,
   sortPriceListItems,
@@ -74,7 +75,10 @@ export function ListaPreciosPage() {
   const [notice, setNotice] = useState("");
   const [conflicts, setConflicts] = useState<SheetConflict[]>([]);
   const [orphans, setOrphans] = useState<PriceListItem[]>([]);
-  const [confirmOrphans, setConfirmOrphans] = useState(false);
+  const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set());
+  const [sheetConnected, setSheetConnected] = useState(false);
+  const [onlyHighlighted, setOnlyHighlighted] = useState(false);
+  const [confirmOrphans, setConfirmOrphans] = useState<"copies" | "all" | null>(null);
 
   // Mientras no se resuelvan, los que ya no estan en la planilla no cuentan ni se imprimen.
   const items = useMemo(() => {
@@ -118,6 +122,8 @@ export function ListaPreciosPage() {
 
       setConflicts(pull.conflicts);
       setOrphans(pull.orphans);
+      setHighlightedRows(new Set(pull.highlightedRows));
+      setSheetConnected(!pull.error);
     }
 
     load();
@@ -143,10 +149,11 @@ export function ListaPreciosPage() {
       if (statusFilter === "disponibles" && sold) return false;
       if (statusFilter === "vendidos" && !sold) return false;
       if (brandFilter && item.brand !== brandFilter) return false;
+      if (onlyHighlighted && !(item.sheetRow && highlightedRows.has(item.sheetRow))) return false;
       if (!search) return true;
       return priceListItemSearchText(item).includes(search);
     });
-  }, [items, term, brandFilter, statusFilter]);
+  }, [items, term, brandFilter, statusFilter, onlyHighlighted, highlightedRows]);
 
   const groups = useMemo(() => groupByBrand(filtered), [filtered]);
 
@@ -209,29 +216,76 @@ export function ListaPreciosPage() {
     }
   };
 
-  const removeOrphans = async () => {
-    if (!confirmOrphans) {
-      setConfirmOrphans(true);
+  // Una "copia vieja" es un registro que apuntaba a una fila que se movio: el mismo auto ya figura
+  // (con sus datos al dia) en otra fila. Los demas ya no estan en la planilla: vendidos o borrados alla.
+  const { oldCopies, goneItems } = useMemo(() => {
+    const norm = (value: string) => normalizeSearchTerm(value ?? "");
+    // Mismo auto = misma marca, unidad y version (una version vacia vale para cualquiera).
+    const hasTwin = (orphan: PriceListItem) =>
+      items.some(
+        (item) =>
+          norm(item.brand) === norm(orphan.brand) &&
+          norm(item.unit) === norm(orphan.unit) &&
+          (!norm(item.version) || !norm(orphan.version) || norm(item.version) === norm(orphan.version)),
+      );
+    return {
+      oldCopies: orphans.filter(hasTwin),
+      goneItems: orphans.filter((orphan) => !hasTwin(orphan)),
+    };
+  }, [items, orphans]);
+
+  const highlightedCount = useMemo(
+    () => items.filter((item) => item.sheetRow && highlightedRows.has(item.sheetRow)).length,
+    [items, highlightedRows],
+  );
+
+  const handleHighlight = async (item: PriceListItem, on: boolean) => {
+    const result = await setItemHighlight(item, on);
+    if (!result.ok) {
+      flash(`No se pudo ${on ? "pintar" : "despintar"} la fila: ${result.error ?? "error desconocido"}.`, 6000);
+      return;
+    }
+    setHighlightedRows((current) => {
+      const next = new Set(current);
+      if (item.sheetRow) {
+        if (on) next.add(item.sheetRow);
+        else next.delete(item.sheetRow);
+      }
+      return next;
+    });
+    flash(on ? "Fila pintada de amarillo en la planilla." : "Se quito el amarillo de la fila.");
+  };
+
+  const removeOrphans = async (scope: "copies" | "all") => {
+    if (confirmOrphans !== scope) {
+      setConfirmOrphans(scope);
       return;
     }
 
-    const ids = orphans.map((item) => item.id);
+    const targets = scope === "copies" ? oldCopies : orphans;
+    const ids = targets.map((item) => item.id);
     const { persisted } = await removeItemsFromApp(ids);
-    setConfirmOrphans(false);
+    setConfirmOrphans(null);
     if (!persisted) {
       flash("No se pudieron sacar: sin conexion con la base.", 6000);
       return;
     }
     setItems((current) => current.filter((item) => !ids.includes(item.id)));
-    setOrphans([]);
-    flash(`Se sacaron ${ids.length} ${ids.length === 1 ? "vehiculo" : "vehiculos"} que ya no estaban en la planilla.`, 6000);
+    setOrphans((current) => current.filter((item) => !ids.includes(item.id)));
+    flash(`Se sacaron ${ids.length} ${ids.length === 1 ? "registro viejo" : "registros viejos"}.`, 6000);
   };
+
+  const describeItems = (list: PriceListItem[]) =>
+    list
+      .slice(0, 6)
+      .map((item) => `${item.brand} ${[item.unit, item.version].filter(Boolean).join(" ")}`.trim())
+      .join(" · ") + (list.length > 6 ? ` · y ${list.length - 6} mas` : "");
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-700">Catalogo</span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-700">Precios</span>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Lista de precios</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -337,6 +391,20 @@ export function ListaPreciosPage() {
               </option>
             ))}
           </Select>
+          {highlightedCount || onlyHighlighted ? (
+            <button
+              type="button"
+              onClick={() => setOnlyHighlighted((current) => !current)}
+              className={cn(
+                "shrink-0 rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition",
+                onlyHighlighted
+                  ? "border-yellow-500 bg-yellow-300 text-yellow-950"
+                  : "border-yellow-300 bg-yellow-50 text-yellow-900 hover:bg-yellow-100",
+              )}
+            >
+              Amarillos ({highlightedCount})
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -352,29 +420,54 @@ export function ListaPreciosPage() {
         <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <div className="flex items-start gap-3">
             <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-            <div>
+            <div className="space-y-2">
               <p className="font-semibold">
-                {orphans.length} {orphans.length === 1 ? "vehiculo ya no esta" : "vehiculos ya no estan"} en la planilla de Google
+                {orphans.length} {orphans.length === 1 ? "registro viejo" : "registros viejos"} en la app
               </p>
-              <p className="mt-1 text-amber-900">
-                Se borraron o se movieron de fila alla (muchos son copias de un auto que ya figura en otra fila).
-                Los escondi de la lista y de la impresion; quedan guardados hasta que los saques de la app.
+              <p className="text-amber-900">
+                Su fila en la planilla quedo vacia. Los escondi de la lista y de la impresion, pero siguen guardados hasta que los saques.
               </p>
-              <p className="mt-2 text-xs text-amber-800">
-                {orphans
-                  .slice(0, 8)
-                  .map((item) => `${item.brand} ${[item.unit, item.version].filter(Boolean).join(" ")}`.trim())
-                  .join(" · ")}
-                {orphans.length > 8 ? ` · y ${orphans.length - 8} mas` : ""}
-              </p>
+              {oldCopies.length ? (
+                <div>
+                  <p className="font-medium">
+                    {oldCopies.length} {oldCopies.length === 1 ? "es una copia" : "son copias"} de autos que siguen en la planilla
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    El auto sigue en la lista con sus datos al dia; solo se saca la copia vieja. {describeItems(oldCopies)}
+                  </p>
+                </div>
+              ) : null}
+              {goneItems.length ? (
+                <div>
+                  <p className="font-medium">
+                    {goneItems.length} {goneItems.length === 1 ? "auto ya no esta" : "autos ya no estan"} en la planilla
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    Se vendieron o se borraron alla. {describeItems(goneItems)}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant={confirmOrphans ? "destructive" : "default"} onClick={() => void removeOrphans()}>
-              {confirmOrphans ? `Confirmar: sacar ${orphans.length} de la app` : "Sacarlos de la app"}
-            </Button>
+            {oldCopies.length ? (
+              <Button
+                variant={confirmOrphans === "copies" ? "destructive" : "default"}
+                onClick={() => void removeOrphans("copies")}
+              >
+                {confirmOrphans === "copies" ? `Confirmar: sacar ${oldCopies.length} copias` : `Sacar solo las copias (${oldCopies.length})`}
+              </Button>
+            ) : null}
+            {goneItems.length ? (
+              <Button
+                variant={confirmOrphans === "all" ? "destructive" : "outline"}
+                onClick={() => void removeOrphans("all")}
+              >
+                {confirmOrphans === "all" ? `Confirmar: sacar ${orphans.length}` : `Sacar todos (${orphans.length})`}
+              </Button>
+            ) : null}
             {confirmOrphans ? (
-              <Button variant="outline" onClick={() => setConfirmOrphans(false)}>
+              <Button variant="ghost" onClick={() => setConfirmOrphans(null)}>
                 Cancelar
               </Button>
             ) : null}
@@ -430,6 +523,8 @@ export function ListaPreciosPage() {
                 onToggle={() => setExpandedId((current) => (current === item.id ? null : item.id))}
                 onSave={(input) => handleSave(item.id, input)}
                 onDelete={() => handleDelete(item.id)}
+                highlighted={Boolean(item.sheetRow && highlightedRows.has(item.sheetRow))}
+                onHighlight={sheetConnected && item.sheetRow ? (on) => handleHighlight(item, on) : undefined}
               />
             ))}
           </div>

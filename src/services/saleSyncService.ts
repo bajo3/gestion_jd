@@ -10,6 +10,7 @@ import {
   saveDateroWorkflow,
 } from "@/services/clientsService";
 import { normalizePlate } from "@/services/documentsService";
+import { highlightSoldCarAutomatically } from "@/services/priceListSaleLink";
 import { rememberWorkingData } from "@/services/workingData";
 import { createVehicle, listVehicles, updateVehicle } from "@/services/vehiclesService";
 import type { ClientDocument } from "@/types/clients";
@@ -402,6 +403,15 @@ export async function syncCompraVentaGenerated(
             ? `Venta finalizada con credito en ${installments} cuotas (vencen el dia ${Number(saleDate.slice(8, 10))}).`
             : "Venta finalizada: el auto quedo como vendido en el historial.",
         );
+        // En la lista de precios no se cambia el estado: se pinta la fila para revisarla.
+        const painted = await highlightSoldCarAutomatically({
+          brand: sold?.vehicle.brand || text(values.marca),
+          model: sold?.vehicle.model || text(values.modelo),
+          year: sold?.vehicle.year,
+          kilometers: sold?.vehicle.kilometers,
+          color: sold?.vehicle.color,
+        }).catch(() => null);
+        if (painted) messages.push(painted.message);
       } else {
         warnings.push("Sin conexion con la base: la venta no se pudo finalizar todavia.");
         links.push(finishLater);

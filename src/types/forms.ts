@@ -146,6 +146,7 @@ export type Calculadora0kmValues = {
   montoFinanciado: string;
   porcentajeQuebranto: string;
   aplicaIva: boolean;
+  porcentajePatentamiento: string;
   plazo: string;
   tna: string;
   campana: string;

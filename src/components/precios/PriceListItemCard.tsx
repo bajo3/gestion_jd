@@ -29,6 +29,10 @@ type PriceListItemCardProps = {
   onToggle: () => void;
   onSave: (input: PriceListItemInput) => Promise<void>;
   onDelete: () => Promise<void>;
+  /** La fila esta pintada de amarillo en la planilla (venta cerrada, o pintada a mano). */
+  highlighted?: boolean;
+  /** Pinta o despinta la fila en la planilla. Si no viene, no se muestra el boton. */
+  onHighlight?: (on: boolean) => Promise<void>;
 };
 
 const TEXT_FIELDS: Array<{ key: keyof PriceListItemInput; label: string; placeholder?: string }> = [
@@ -69,6 +73,8 @@ export function PriceListItemCard({
   onToggle,
   onSave,
   onDelete,
+  highlighted = false,
+  onHighlight,
 }: PriceListItemCardProps) {
   const [draft, setDraft] = useState<PriceListItemInput>(() => priceListItemToInput(item));
   const [cashText, setCashText] = useState(() => formatPriceInput(item.cashPrice));
@@ -113,6 +119,16 @@ export function PriceListItemCard({
     }
   };
 
+  const toggleHighlight = async () => {
+    if (!onHighlight) return;
+    setSaving(true);
+    try {
+      await onHighlight(!highlighted);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -130,8 +146,9 @@ export function PriceListItemCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border bg-white shadow-sm transition",
-        expanded ? "border-slate-400 shadow-md sm:col-span-2" : "border-slate-200",
+        "overflow-hidden rounded-2xl border shadow-sm transition",
+        highlighted ? "border-yellow-300 bg-yellow-50" : "border-slate-200 bg-white",
+        expanded ? "border-slate-400 shadow-md sm:col-span-2" : "",
         isSold && !expanded ? "opacity-75" : "",
       )}
     >
@@ -157,13 +174,18 @@ export function PriceListItemCard({
             <span className="text-xs text-slate-500">Lista {formatPrice(item.listPrice, item.currency)}</span>
           ) : null}
           <span className="ml-auto flex items-center gap-1.5">
+            {highlighted ? (
+              <span className="inline-flex shrink-0 items-center rounded-full border border-yellow-400 bg-yellow-200 px-2.5 py-0.5 text-[11px] font-bold text-yellow-900">
+                Amarillo
+              </span>
+            ) : null}
             <StatusPill status={status} />
           </span>
         </div>
       </button>
 
       {!expanded ? (
-        <div className="border-t border-slate-100 px-4 py-2">
+        <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2", highlighted ? "border-yellow-200" : "border-slate-100")}>
           {isSold ? (
             <button
               type="button"
@@ -183,6 +205,16 @@ export function PriceListItemCard({
               {saving ? "Guardando…" : "Marcar como vendido"}
             </button>
           )}
+          {onHighlight ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void toggleHighlight()}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-50"
+            >
+              {highlighted ? "Quitar amarillo" : "Pintar de amarillo"}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

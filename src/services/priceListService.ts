@@ -305,6 +305,8 @@ export type SheetPullResult = {
    * se borraron o se movieron alla. Suelen ser duplicados de una fila que ya se importo de nuevo.
    */
   orphans: PriceListItem[];
+  /** Filas pintadas de amarillo en la planilla (ventas cerradas, o lo que se pinte a mano). */
+  highlightedRows: number[];
   /** Filas nuevas de la planilla, dadas de alta como vehiculos. */
   created: PriceListItem[];
   /** Vehiculos que se editaron de los dos lados: los resuelve el usuario. */
@@ -313,7 +315,7 @@ export type SheetPullResult = {
   error?: string;
 };
 
-const EMPTY_PULL: SheetPullResult = { imported: [], rebranded: [], orphans: [], created: [], conflicts: [] };
+const EMPTY_PULL: SheetPullResult = { imported: [], rebranded: [], orphans: [], highlightedRows: [], created: [], conflicts: [] };
 
 /** Guarda en Supabase una fila importada de la planilla, sin volver a escribirla ahi. */
 async function applySheetImport(item: PriceListItem, input: PriceListItemInput, signature: string) {
@@ -393,7 +395,7 @@ export async function pullSheetChanges(items: PriceListItem[]): Promise<SheetPul
     };
   }
 
-  const result: SheetPullResult = { imported: [], rebranded: [], orphans: [], created: [], conflicts: [] };
+  const result: SheetPullResult = { imported: [], rebranded: [], orphans: [], highlightedRows: sheet.highlightedRows ?? [], created: [], conflicts: [] };
 
   for (const [index, values] of rows.entries()) {
     const sheetRow = index + 1;
@@ -482,6 +484,15 @@ export async function pullSheetChanges(items: PriceListItem[]): Promise<SheetPul
   }
 
   return result;
+}
+
+/**
+ * Pinta de amarillo (o despinta) la fila del vehiculo en la planilla. El amarillo vive solo
+ * en la planilla: asi tambien vale el que se pinta a mano desde Google Sheets.
+ */
+export async function setItemHighlight(item: PriceListItem, on: boolean) {
+  if (!item.sheetRow) return { ok: false, error: "Este vehiculo todavia no tiene fila en la planilla." } as const;
+  return syncToSheet({ action: "highlight", sheetRow: item.sheetRow, on });
 }
 
 /**

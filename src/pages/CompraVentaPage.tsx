@@ -18,6 +18,7 @@ import { StatusBadge } from "@/components/vehicles/StatusBadge";
 import { attachFilesToVehicle, deleteVehicleFile, updateVehicle } from "@/services/vehiclesService";
 import { uploadVehicleFile } from "@/services/filesService";
 import { generateCompraVentaPdf } from "@/pdf/compraVentaPdf";
+import { DniScanButton } from "@/components/documents/DniScanButton";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { syncCompraVentaGenerated } from "@/services/saleSyncService";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
@@ -150,6 +151,12 @@ export function CompraVentaPage() {
       ) : null}
 
       <FormSection title="Datos del comprador">
+        <DniScanButton
+          onRead={(dni) => {
+            form.set("recibido", dni.nombreCompleto);
+            form.set("numeroDoc", dni.dni);
+          }}
+        />
         <FormGrid>
           <FormField label="Fecha">
             <Input type="date" value={values.fecha} onChange={(event) => form.set("fecha", event.target.value)} />

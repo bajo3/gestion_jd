@@ -14,6 +14,7 @@ import { rememberWorkingData } from "@/services/workingData";
 import { saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
 import { syncDateroGenerated } from "@/services/saleSyncService";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
+import { DniScanButton } from "@/components/documents/DniScanButton";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import type { DateroFormValues } from "@/types/forms";
@@ -107,6 +108,14 @@ export function DateroPage() {
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
       {workflow.vehicle ? <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><strong>Auto seleccionado:</strong> {workflow.vehicle.brand} {workflow.vehicle.model}{workflow.vehicle.licensePlate ? ` · ${workflow.vehicle.licensePlate}` : ""}. Se va a conservar al guardar la operación.</div> : null}
       <FormSection title="Datos del comprador">
+        <DniScanButton
+          onRead={(dni) => {
+            form.set("nombre", dni.nombreCompleto);
+            form.set("dni", dni.dni);
+            if (dni.fechaNacimiento) form.set("fechaNacimiento", dni.fechaNacimiento);
+            if (dni.cuil) form.set("cuil", dni.cuil);
+          }}
+        />
         <FormGrid>
           {([
             ["nombre", "Apellido y nombre"],

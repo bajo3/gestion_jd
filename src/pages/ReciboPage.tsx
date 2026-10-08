@@ -11,6 +11,7 @@ import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { useSharedFlow, type FlowCommit } from "@/hooks/useSharedFlow";
 import { parseNumberish } from "@/lib/utils";
 import { amountToLetters, generateReciboPdf } from "@/pdf/reciboPdf";
+import { DniScanButton } from "@/components/documents/DniScanButton";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { commitReceiptNumber, getNextReceiptNumber } from "@/services/receiptCounterService";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
@@ -98,6 +99,12 @@ export function ReciboPage() {
       </FormSection>
 
       <FormSection title="Quien paga">
+        <DniScanButton
+          onRead={(dni) => {
+            form.set("cliente", dni.nombreCompleto);
+            form.set("doc", dni.dni);
+          }}
+        />
         <FormGrid>
           <FormField label="Apellido y nombre / Razon social">
             <Input value={values.cliente} onChange={(event) => form.set("cliente", event.target.value)} />

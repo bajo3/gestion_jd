@@ -77,6 +77,8 @@ function sanitizePatch(input) {
   return {
     values: patch,
     targetVehicleId: cleanString(source.targetVehicleId),
+    // El DNI no es un dato del auto: viaja aparte para crear el cliente al cerrar la venta.
+    buyerDni: cleanString(String(source.buyerDni ?? values.buyerDni ?? "")).replace(/\D/g, ""),
     notes: Array.isArray(source.notes) ? source.notes.map(cleanString).filter(Boolean).slice(0, 4) : [],
     assistantText: cleanString(source.assistantText),
   };
@@ -115,10 +117,10 @@ export async function parseAssistantWithGlm(payload) {
 values acepta: brand, model, licensePlate, year, vin, engine, color, kilometers, entryDate, exitDate, status, observations, purchasePrice, salePrice, buyerName, buyerPhone, hasCredit, creditStartDate, creditTotalInstallments, creditDueDay.
 status: ingresado|en_preparacion|publicado|reservado|vendido|egresado|archivado.
 
-Reglas: vendido/vendida => status vendido; vendido/egresado/entregado sin fecha => exitDate = currentDate; "$17.800.000" => 17800000; "39.000km" => 39000; credito/financiado/cuotas => hasCredit true; no inventes datos faltantes.
+Reglas: vendido/vendida/vendi/se vendio => status vendido; "52 millones" o "52 palos" => 52000000; el DNI del comprador va en buyerDni (solo digitos), nunca en values; vendido/egresado/entregado sin fecha => exitDate = currentDate; "$17.800.000" => 17800000; "39.000km" => 39000; credito/financiado/cuotas => hasCredit true; no inventes datos faltantes.
 La lista vehicles viene como "id|marca modelo anio|patente|estado". Devolve targetVehicleId solo si identificas un unico auto sin ambiguedad.
 
-Salida: {"values":{},"targetVehicleId":"","notes":[],"assistantText":""}`;
+Salida: {"values":{},"buyerDni":"","targetVehicleId":"","notes":[],"assistantText":""}`;
 
   const user = JSON.stringify({
     currentDate,
