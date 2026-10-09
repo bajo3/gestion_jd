@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
   const serverEnvKeys = [
     "ZAI_API_KEY",
     "GLM_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_WORKSPACE_ID",
+    "BOLETO_MODEL",
     "ZAI_MODEL",
     "ZAI_BASE_URL",
     "GOOGLE_SERVICE_ACCOUNT_EMAIL",

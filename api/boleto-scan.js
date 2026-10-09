@@ -166,17 +166,28 @@ export async function scanBoleto(payload) {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
+      // Solo hace falta si la clave no esta creada dentro de un workspace de Anthropic.
+      ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
     },
     body: JSON.stringify({
       model,
-      max_tokens: 2000,
+      // El razonamiento interno del modelo cuenta dentro de este tope: se deja holgado.
+      max_tokens: 8000,
+      output_config: { effort: "medium" },
       system: SYSTEM,
       tools: [extractionTool],
-      tool_choice: { type: "tool", name: extractionTool.name },
+      // Los modelos nuevos no aceptan forzar la herramienta: se la pide por el texto.
+      tool_choice: { type: "auto" },
       messages: [
         {
           role: "user",
-          content: [fileBlock, { type: "text", text: "Lee este boleto y registra sus datos con la herramienta." }],
+          content: [
+            fileBlock,
+            {
+              type: "text",
+              text: `Lee este boleto y registra sus datos llamando a la herramienta "${extractionTool.name}". Responde solo con esa llamada, sin texto.`,
+            },
+          ],
         },
       ],
     }),
@@ -201,7 +212,11 @@ export async function scanBoleto(payload) {
 
   const body = await response.json();
   const block = Array.isArray(body?.content) ? body.content.find((item) => item.type === "tool_use") : null;
-  if (!block?.input) return { ok: false, error: "No se pudo leer el boleto: la IA no devolvio datos." };
+  if (!block?.input) {
+    if (body?.stop_reason === "refusal") return { ok: false, error: "La IA no quiso leer este archivo. Probá con otra foto o PDF." };
+    if (body?.stop_reason === "max_tokens") return { ok: false, error: "La lectura se cortó antes de terminar. Reintentá." };
+    return { ok: false, error: "No se pudo leer el boleto: la IA no devolvió datos. Reintentá." };
+  }
 
   return { ok: true, model, extraction: sanitizeExtraction(block.input) };
 }
