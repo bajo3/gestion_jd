@@ -21,6 +21,7 @@ const ClientesPage = lazy(() => import("@/pages/ventas/ClientesPage").then((m) =
 const ClienteDetallePage = lazy(() =>
   import("@/pages/ventas/ClienteDetallePage").then((m) => ({ default: m.ClienteDetallePage })),
 );
+const BoletosPage = lazy(() => import("@/pages/BoletosPage").then((m) => ({ default: m.BoletosPage })));
 const TestDrivePage = lazy(() => import("@/pages/TestDrivePage").then((m) => ({ default: m.TestDrivePage })));
 const Calculadora0kmPage = lazy(() =>
   import("@/pages/Calculadora0kmPage").then((m) => ({ default: m.Calculadora0kmPage })),
@@ -95,6 +96,7 @@ export function Router() {
           <Route path="/ventas/documentos" element={<VentasDocumentosPage />} />
           <Route path="/ventas/clientes" element={<ClientesPage />} />
           <Route path="/ventas/clientes/:id" element={<ClienteDetallePage />} />
+          <Route path="/boletos" element={<BoletosPage />} />
           <Route path="/leads" element={<LeadsPage />} />
           <Route path="/consultas" element={<ConsultasPage />} />
           <Route path="/lista-precios" element={<ListaPreciosPage />} />

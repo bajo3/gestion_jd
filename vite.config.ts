@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { parseAssistantWithGlm } from "./api/ai-assistant.js";
 import { runWorkspaceAssistant } from "./api/workspace-assistant.js";
 import { syncPriceListToSheet } from "./api/sheets-sync.js";
+import { scanBoleto } from "./api/boleto-scan.js";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -74,6 +75,10 @@ export default defineConfig(({ mode }) => {
 
           server.middlewares.use("/api/workspace-assistant", async (request, response) => {
             handlePost(request, response, runWorkspaceAssistant);
+          });
+
+          server.middlewares.use("/api/boleto-scan", async (request, response) => {
+            handlePost(request, response, scanBoleto);
           });
 
           server.middlewares.use("/api/sheets-sync", async (request, response) => {
