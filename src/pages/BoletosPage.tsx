@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { deletePendingDocument } from "@/services/documentsService";
 import {
   ACCEPTED_BOLETO_TYPES,
   boletoWarnings,
@@ -15,7 +16,9 @@ import {
   confirmBoleto,
   findExistingBoletos,
   isBoletoFile,
+  saveBoletoFile,
   scanBoletoFile,
+  type SavedBoletoFile,
   type BoletoConfirmResult,
   type BoletoExtraction,
   type BoletoForm,
@@ -33,6 +36,10 @@ type Entry = {
   result: BoletoConfirmResult | null;
   /** Aviso de que ya hay un boleto de esa patente; con el segundo click se carga igual. */
   duplicate: string;
+  /** El archivo ya guardado en Consultas (se guarda al subirlo, antes de leerlo). */
+  saved: SavedBoletoFile | null;
+  /** true mientras el archivo se esta guardando; false cuando termino (bien o mal). */
+  savingFile: boolean;
 };
 
 let nextId = 1;
@@ -74,10 +81,18 @@ export function BoletosPage() {
       error: "",
       result: null,
       duplicate: "",
+      saved: null,
+      savingFile: true,
     }));
     if (!fresh.length) return;
     setEntries((current) => [...fresh, ...current]);
-    for (const entry of fresh) readEntry(entry.id, entry.file);
+    for (const entry of fresh) {
+      // El archivo se guarda de inmediato y en paralelo a la lectura.
+      saveBoletoFile(entry.file)
+        .then((saved) => patchEntry(entry.id, { saved, savingFile: false }))
+        .catch(() => patchEntry(entry.id, { saved: null, savingFile: false }));
+      readEntry(entry.id, entry.file);
+    }
   };
 
   const confirm = async (entry: Entry) => {
@@ -94,11 +109,25 @@ export function BoletosPage() {
     }
     patchEntry(entry.id, { phase: "saving", error: "" });
     try {
-      const result = await confirmBoleto(entry.form, entry.file);
+      const result = await confirmBoleto(entry.form, entry.file, entry.saved);
       patchEntry(entry.id, { phase: "saved", result });
     } catch (error) {
       patchEntry(entry.id, { phase: "review", error: error instanceof Error ? error.message : "No se pudo cargar el boleto." });
     }
+  };
+
+  /** La X saca la tarjeta y, si el boleto no se confirmo, tambien borra el archivo guardado. */
+  const removeEntry = async (entry: Entry) => {
+    const pending = entry.phase !== "saved" && entry.saved?.document;
+    if (pending) {
+      if (!window.confirm("¿Quitar este boleto? También se borra el archivo guardado en Consultas.")) return;
+      const deleted = await deletePendingDocument(pending);
+      if (!deleted) {
+        patchEntry(entry.id, { error: "No se pudo borrar el archivo guardado. Probá de nuevo." });
+        return;
+      }
+    }
+    setEntries((current) => current.filter((item) => item.id !== entry.id));
   };
 
   const setField = (id: string, field: keyof BoletoForm, value: string) => {
@@ -157,7 +186,7 @@ export function BoletosPage() {
           onField={(field, value) => setField(entry.id, field, value)}
           onConfirm={() => void confirm(entry)}
           onRetry={() => readEntry(entry.id, entry.file)}
-          onRemove={() => setEntries((current) => current.filter((item) => item.id !== entry.id))}
+          onRemove={() => void removeEntry(entry)}
         />
       ))}
     </div>
@@ -188,9 +217,32 @@ function EntryCard({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">{entry.file.name}</p>
             <p className="text-xs text-slate-500">{(entry.file.size / 1024).toFixed(0)} KB</p>
+            {entry.savingFile ? (
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Guardando el archivo…
+              </p>
+            ) : entry.saved?.persisted ? (
+              <p className="mt-1 text-xs font-medium text-emerald-700">
+                ✓ Archivo guardado en Consultas.{" "}
+                <Link to="/consultas" className="underline">
+                  Ver
+                </Link>
+              </p>
+            ) : (
+              <p className="mt-1 text-xs font-medium text-amber-700">
+                No se pudo guardar en la base: el archivo quedó solo en este navegador.
+              </p>
+            )}
           </div>
-          {phase !== "saving" ? (
-            <button type="button" onClick={onRemove} className="text-slate-400 hover:text-slate-700" aria-label="Quitar">
+          {phase !== "saving" && !entry.savingFile ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-slate-400 hover:text-slate-700"
+              aria-label="Quitar"
+              title={phase === "saved" ? "Quitar de la lista" : "Quitar y borrar el archivo guardado"}
+            >
               <X className="h-4 w-4" />
             </button>
           ) : null}
@@ -338,7 +390,7 @@ function EntryCard({
           </fieldset>
         ) : null}
 
-        {entry.error && phase === "review" ? <p className="text-sm font-medium text-red-700">{entry.error}</p> : null}
+        {entry.error && phase !== "error" && phase !== "saved" ? <p className="text-sm font-medium text-red-700">{entry.error}</p> : null}
 
         {phase === "saved" && entry.result ? (
           <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm">

@@ -1,10 +1,11 @@
 import { toVehicleInput } from "@/lib/vehicleInput";
 import { formatCurrency } from "@/lib/utils";
-import { archiveDocument, normalizePlate, searchDocuments } from "@/services/documentsService";
+import { archiveDocument, normalizePlate, searchDocuments, updateArchivedDocument } from "@/services/documentsService";
 import { uploadVehicleFile } from "@/services/filesService";
 import { emptyVehicleInput, syncCompraVentaGenerated, type SaleSyncLink } from "@/services/saleSyncService";
 import { attachFilesToVehicle, createVehicle, listVehicles, updateVehicle } from "@/services/vehiclesService";
 import type { CompraVentaFormValues } from "@/types/forms";
+import type { StoredDocument } from "@/types/documents";
 import type { Vehicle, VehicleInput } from "@/types/vehicles";
 
 export type BoletoPerson = {
@@ -208,6 +209,27 @@ export function toCompraVentaValues(form: BoletoForm): CompraVentaFormValues {
   };
 }
 
+export type SavedBoletoFile = { document: StoredDocument; persisted: boolean };
+
+/**
+ * Guarda el archivo apenas se sube, antes de leerlo: aunque la lectura falle o se cierre la
+ * pagina, el PDF o la foto ya quedaron en Consultas para revisarlos despues.
+ */
+export async function saveBoletoFile(file: File): Promise<SavedBoletoFile> {
+  return archiveDocument({
+    documentType: "compraVenta",
+    values: { estado: "pendiente_revision", observaciones: "Boleto subido, pendiente de revisar" },
+    fileName: file.name,
+    blob: file,
+  });
+}
+
+/** Completa el documento ya guardado con los datos revisados; si no hay, lo archiva recien. */
+async function archiveReviewed(file: File, values: Record<string, unknown>, saved: SavedBoletoFile | null) {
+  if (saved) return updateArchivedDocument(saved.document, values);
+  return archiveDocument({ documentType: "compraVenta", values, fileName: file.name, blob: file });
+}
+
 const NOT_PERSISTED =
   "El archivo quedó solo en este navegador: no llegó a la base de datos. Volvé a cargarlo cuando haya conexión.";
 
@@ -265,7 +287,7 @@ async function confirmSale(form: BoletoForm, file: File): Promise<BoletoConfirmR
   return { messages, warnings, links: result.links ?? [] };
 }
 
-async function confirmPurchase(form: BoletoForm, file: File): Promise<BoletoConfirmResult> {
+async function confirmPurchase(form: BoletoForm, file: File, saved: SavedBoletoFile | null): Promise<BoletoConfirmResult> {
   const messages: string[] = [];
   const warnings: string[] = [];
   const plate = form.dominio.trim().toUpperCase();
@@ -306,12 +328,11 @@ async function confirmPurchase(form: BoletoForm, file: File): Promise<BoletoConf
     messages.push(`Auto cargado en el Historial${price && form.moneda === "ARS" ? ` (compra por ${formatCurrency(price)})` : ""}.`);
   }
 
-  const archived = await archiveDocument({
-    documentType: "compraVenta",
-    values: { ...toCompraVentaValues(form), recibido: "Jesús Díaz Automotores (compra)", numeroDoc: "" },
-    fileName: file.name,
-    blob: file,
-  });
+  const archived = await archiveReviewed(
+    file,
+    { ...toCompraVentaValues(form), recibido: "Jesús Díaz Automotores (compra)", numeroDoc: "" },
+    saved,
+  );
   if (archived.persisted) messages.push("El boleto quedó guardado en Consultas.");
   else warnings.push(NOT_PERSISTED);
 
@@ -326,16 +347,15 @@ async function confirmPurchase(form: BoletoForm, file: File): Promise<BoletoConf
 }
 
 /** Carga lo revisado: venta => cliente, operacion y venta cerrada; compra => auto en el Historial. */
-export async function confirmBoleto(form: BoletoForm, file: File): Promise<BoletoConfirmResult> {
-  if (form.direction === "compra") return confirmPurchase(form, file);
+export async function confirmBoleto(
+  form: BoletoForm,
+  file: File,
+  saved: SavedBoletoFile | null = null,
+): Promise<BoletoConfirmResult> {
+  if (form.direction === "compra") return confirmPurchase(form, file, saved);
 
   // La venta archiva el PDF/foto original para poder consultarlo despues.
-  const archived = await archiveDocument({
-    documentType: "compraVenta",
-    values: toCompraVentaValues(form) as unknown as Record<string, unknown>,
-    fileName: file.name,
-    blob: file,
-  });
+  const archived = await archiveReviewed(file, toCompraVentaValues(form) as unknown as Record<string, unknown>, saved);
   const result = await confirmSale(form, file);
   if (archived.persisted) result.messages.unshift("El boleto quedó guardado en Consultas.");
   else result.warnings.unshift(NOT_PERSISTED);

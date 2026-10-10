@@ -293,7 +293,7 @@ async function uploadDocumentFile(document: StoredDocument, blob: Blob) {
   try {
     const { error } = await supabase.storage.from(BUCKET).upload(objectPath, blob, {
       upsert: true,
-      contentType: "application/pdf",
+      contentType: blob.type || "application/pdf",
     });
 
     if (error) return null;
@@ -380,6 +380,59 @@ export async function archiveDocument(input: ArchiveDocumentInput) {
   const merged: StoredDocument = { ...remoteDocument, fileUrl: remoteDocument.fileUrl ?? localDocument.fileUrl };
   saveLocalDocuments(readLocalDocuments().map((item) => (item.id === localDocument.id ? merged : item)));
   return { document: merged, persisted: true };
+}
+
+/**
+ * Actualiza un documento ya archivado con los datos revisados (persona, patente, precio...)
+ * sin volver a subir el archivo.
+ */
+export async function updateArchivedDocument(document: StoredDocument, values: Record<string, unknown>) {
+  const meta = buildDocumentMeta(document.documentType, values);
+  const updated: StoredDocument = {
+    ...document,
+    ...meta,
+    title: buildTitle(document.documentType, meta),
+    formData: values,
+  };
+
+  saveLocalDocuments(readLocalDocuments().map((item) => (item.id === document.id ? updated : item)));
+
+  if (!isSupabaseConfigured || !supabase) return { document: updated, persisted: false };
+
+  try {
+    const { id: _id, app_source: _source, created_at: _created, ...changes } = documentPayload(updated);
+    void _id;
+    void _source;
+    void _created;
+    const { error } = await supabase
+      .from(DOCUMENTS_TABLE)
+      .update(changes)
+      .eq("id", document.id)
+      .eq("app_source", APP_SOURCE);
+    return { document: updated, persisted: !error };
+  } catch {
+    return { document: updated, persisted: false };
+  }
+}
+
+/**
+ * Borra un boleto subido que nunca se reviso (archivo y registro). Por seguridad solo
+ * acepta documentos todavia "pendiente_revision": uno ya confirmado no se toca.
+ */
+export async function deletePendingDocument(document: StoredDocument) {
+  if (document.formData?.estado !== "pendiente_revision") return false;
+
+  saveLocalDocuments(readLocalDocuments().filter((item) => item.id !== document.id));
+  if (!isSupabaseConfigured || !supabase) return true;
+
+  try {
+    const { error } = await supabase.from(DOCUMENTS_TABLE).delete().eq("id", document.id).eq("app_source", APP_SOURCE);
+    if (error) return false;
+    if (document.storagePath) await supabase.storage.from(BUCKET).remove([document.storagePath]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function fetchRemoteDocuments(filters: DocumentSearchFilters = {}): Promise<StoredDocument[] | null> {
