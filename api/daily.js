@@ -1,7 +1,7 @@
 // Rutina diaria: corre sola todas las mañanas (cron de Vercel, ver vercel.json).
 //
 // 1. Crea los seguimientos de postventa y de credito que falten para los autos vendidos.
-// 2. Arma el resumen "Que hacer hoy" (leads sin contestar, seguimientos vencidos,
+// 2. Arma el resumen "Que hacer hoy" (leads sin contestar, cumpleaños, seguimientos vencidos,
 //    presupuestos sin cerrar, ventas con datos faltantes y pendientes).
 // 3. Si hay un canal configurado (Telegram), manda ese resumen al celular.
 //
@@ -12,6 +12,16 @@ const APP_SOURCE = "gestion_jd";
 const QUOTE_MIN_DAYS = 3;
 const QUOTE_MAX_DAYS = 45;
 const MAX_LINES_PER_SECTION = 5;
+const POST_SALE_GRACE_DAYS = 7;
+const BIRTHDAY_WINDOW_DAYS = 2;
+
+const ALERT_TYPE_LABELS = {
+  credit_installment_10: "crédito, cuota 10",
+  post_sale_7_days: "postventa 7 días",
+  post_sale_30_days: "postventa 30 días",
+  post_sale_6_months: "postventa 6 meses",
+  post_sale_12_months: "postventa 12 meses",
+};
 
 function getConfig() {
   return {
@@ -74,6 +84,19 @@ function ago(days) {
   if (days <= 0) return "hoy";
   if (days === 1) return "hace 1 día";
   return `hace ${days} días`;
+}
+
+/** La fecha de hoy en Argentina: el servidor corre en UTC y a la noche ya esta en el dia siguiente. */
+function todayInArgentina() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+}
+
+/** "2025-03-10" + 7 dias -> "2025-03-17" */
+function addDays(dateOnly, days) {
+  const date = new Date(`${dateOnly}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 /** "2025-03-10" + 12 meses -> "2026-03-10" */
@@ -148,10 +171,21 @@ function vehicleName(vehicle) {
 
 /**
  * Hoy los seguimientos se crean cuando alguien guarda el auto. Esta pasada asegura que
- * ningun auto vendido se quede sin su postventa (12 meses) ni su aviso de credito (cuota 10).
- * No toca los que ya existen, esten pendientes, contactados o descartados.
+ * ningun auto vendido se quede sin su escalera de postventa (7 dias, 30 dias, 6 y 12 meses)
+ * ni su aviso de credito (cuota 10). No toca los que ya existen, esten pendientes,
+ * contactados o descartados. Los contactos cortos que ya quedaron viejos no se crean.
  */
-function alertsToCreate(vehicles, alerts) {
+function postSaleSteps(saleDate, today) {
+  const oldestAllowed = addDays(today, -POST_SALE_GRACE_DAYS);
+  return [
+    { type: "post_sale_7_days", date: addDays(saleDate, 7) },
+    { type: "post_sale_30_days", date: addDays(saleDate, 30) },
+    { type: "post_sale_6_months", date: addMonths(saleDate, 6) },
+    { type: "post_sale_12_months", date: addMonths(saleDate, 12) },
+  ].filter((step) => step.date && (step.type === "post_sale_12_months" || step.date >= oldestAllowed));
+}
+
+function alertsToCreate(vehicles, alerts, today) {
   const existing = new Set(alerts.filter((alert) => alert.vehicle_id).map((alert) => `${alert.vehicle_id}|${alert.alert_type}`));
   const created = [];
 
@@ -160,9 +194,11 @@ function alertsToCreate(vehicles, alerts) {
     const name = text(vehicle.buyer_name);
     const phone = text(vehicle.buyer_phone);
 
-    if (name && phone && vehicle.exit_date && !existing.has(`${vehicle.id}|post_sale_12_months`)) {
-      const date = addMonths(String(vehicle.exit_date).slice(0, 10), 12);
-      if (date) created.push({ vehicle_id: vehicle.id, client_name: name, client_phone: phone, alert_type: "post_sale_12_months", alert_date: date, status: "pending" });
+    if (name && phone && vehicle.exit_date) {
+      for (const step of postSaleSteps(String(vehicle.exit_date).slice(0, 10), today)) {
+        if (existing.has(`${vehicle.id}|${step.type}`)) continue;
+        created.push({ vehicle_id: vehicle.id, client_name: name, client_phone: phone, alert_type: step.type, alert_date: step.date, status: "pending" });
+      }
     }
 
     if (vehicle.has_credit && vehicle.credit_start_date && name && phone && !existing.has(`${vehicle.id}|credit_installment_10`)) {
@@ -172,6 +208,28 @@ function alertsToCreate(vehicles, alerts) {
   }
 
   return created;
+}
+
+// --- Cumpleaños ---------------------------------------------------------------
+
+/** Clientes que cumplen hoy o cumplieron en los ultimos dias (por si cayo fin de semana). */
+function birthdaysToGreet(clients, today) {
+  const year = Number(today.slice(0, 4));
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const result = [];
+
+  for (const client of clients) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text(client.fecha_nacimiento));
+    if (!match) continue;
+    const day = match[2] === "02" && match[3] === "29" && !isLeap ? "28" : match[3];
+    const birthday = `${year}-${match[2]}-${day}`;
+    if (birthday > today) continue;
+    const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${birthday}T00:00:00Z`)) / 86400000);
+    if (days > BIRTHDAY_WINDOW_DAYS) continue;
+    result.push({ name: text(client.nombre) || "Cliente sin nombre", days });
+  }
+
+  return result.sort((a, b) => a.days - b.days);
 }
 
 // --- Resumen ------------------------------------------------------------------
@@ -184,7 +242,7 @@ function section(title, lines) {
 }
 
 function buildMessage(summary, appUrl) {
-  const total = summary.leads.length + summary.followups.length + summary.quotes.length + summary.missingSales.length + summary.pendings.length;
+  const total = summary.leads.length + summary.birthdays.length + summary.followups.length + summary.quotes.length + summary.missingSales.length + summary.pendings.length;
   const date = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
 
   if (!total) {
@@ -195,6 +253,7 @@ function buildMessage(summary, appUrl) {
     `Jesús Díaz Automotores · ${date}`,
     `Qué hacer hoy: ${total} ${total === 1 ? "tarea" : "tareas"}`,
     ...section("Leads sin contestar", summary.leads.map((lead) => `${lead.name} (${ago(lead.days)})`)),
+    ...section("Cumpleaños", summary.birthdays.map((item) => `${item.name} (${item.days === 0 ? "hoy" : item.days === 1 ? "ayer" : `hace ${item.days} días`})`)),
     ...section("Seguimientos vencidos", summary.followups.map((item) => `${item.name} · ${item.type} (venció ${ago(item.days)})`)),
     ...section("Presupuestos sin cerrar", summary.quotes.map((quote) => `${quote.name}${quote.car ? ` · ${quote.car}` : ""} (${ago(quote.days)})`)),
     ...section("Ventas con datos faltantes", summary.missingSales.map((item) => `${item.name}: falta ${item.missing.join(", ")}`)),
@@ -245,12 +304,12 @@ export async function runDailyRoutine(options = {}) {
     safe("leads", db("meli_leads?select=lead_key,source,buyer_name,status,date_created,raw_json"), errors),
     safe("presupuestos", db(`gestion_jd_documents?select=id,client_id,operation_id,data,updated_at&${source}&document_type=eq.presupuesto_cliente&order=updated_at.desc&limit=100`), errors),
     safe("operaciones", db(`gestion_jd_operations?select=id,status&${source}`), errors),
-    safe("clientes", db(`gestion_jd_clients?select=id,nombre&${source}`), errors),
+    safe("clientes", db(`gestion_jd_clients?select=id,nombre,fecha_nacimiento&${source}`), errors),
     safe("pendientes", db(`gestion_jd_pendientes?select=id,title,completed_at&${source}`), errors),
   ]);
 
   // 1. Seguimientos que faltan.
-  const newAlerts = alertsToCreate(vehicles, alerts);
+  const newAlerts = alertsToCreate(vehicles, alerts, todayInArgentina());
   let createdAlerts = 0;
   if (newAlerts.length && !dryRun) {
     try {
@@ -273,11 +332,12 @@ export async function runDailyRoutine(options = {}) {
 
   const summary = {
     leads: leadsNeedingReply(leads),
+    birthdays: birthdaysToGreet(clients, todayInArgentina()),
     followups: alerts
       .filter((alert) => (alert.status === "pending" || alert.status === "postponed") && alert.alert_date <= today)
       .map((alert) => ({
         name: text(alert.client_name) || "Cliente sin nombre",
-        type: alert.alert_type === "credit_installment_10" ? "crédito, cuota 10" : "postventa 12 meses",
+        type: ALERT_TYPE_LABELS[alert.alert_type] || "seguimiento",
         days: daysSince(alert.alert_date),
       }))
       .sort((a, b) => b.days - a.days),
@@ -309,6 +369,7 @@ export async function runDailyRoutine(options = {}) {
     dryRun,
     counts: {
       leads: summary.leads.length,
+      birthdays: summary.birthdays.length,
       followups: summary.followups.length,
       quotes: summary.quotes.length,
       missingSales: summary.missingSales.length,

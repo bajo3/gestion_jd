@@ -1,21 +1,22 @@
 import { formatPrice, priceListItemTitle } from "@/lib/priceList";
 import { listVehiclesWithMissingSaleData } from "@/lib/saleMissingData";
-import { listOpenQuotes } from "@/services/clientsService";
+import { listClients, listOpenQuotes } from "@/services/clientsService";
 import { buildCommercialAlertMessage, listCommercialAlerts } from "@/services/commercialAlertsService";
 import { listAssistantLeads, type AssistantLead } from "@/services/leadsService";
 import { listPendingItems } from "@/services/pendingItemsService";
 import { matchPriceListByText } from "@/services/priceListSaleLink";
 import { listPriceListItems } from "@/services/priceListService";
 import { listVehicles } from "@/services/vehiclesService";
-import type { CommercialAlert } from "@/types/commercialAlerts";
+import { commercialAlertTypeLabel, type CommercialAlert } from "@/types/commercialAlerts";
+import type { Client } from "@/types/clients";
 import type { PriceListItem } from "@/types/priceList";
 
 /**
  * "Que hago hoy": junta en una sola lista, ya ordenada, lo que hoy esta repartido entre
- * Leads, Seguimientos, Ventas, Presupuestos y Pendientes. Cada tarea trae listo el mensaje
+ * Leads, Seguimientos, Clientes, Ventas, Presupuestos y Pendientes. Cada tarea trae listo el mensaje
  * de WhatsApp y a donde ir para resolverla.
  */
-export type TodayTaskKind = "lead" | "request" | "followup" | "quote" | "missing_sale" | "pending";
+export type TodayTaskKind = "lead" | "request" | "birthday" | "followup" | "quote" | "missing_sale" | "pending";
 
 export type TodayTask = {
   id: string;
@@ -34,6 +35,7 @@ export type TodayTask = {
 export const TODAY_KIND_LABELS: Record<TodayTaskKind, string> = {
   lead: "Leads sin contestar",
   request: "Encargos con stock",
+  birthday: "Cumpleaños",
   followup: "Seguimientos vencidos",
   quote: "Presupuestos sin cerrar",
   missing_sale: "Ventas con datos faltantes",
@@ -42,6 +44,8 @@ export const TODAY_KIND_LABELS: Record<TodayTaskKind, string> = {
 
 const QUOTE_MIN_DAYS = 3;
 const QUOTE_MAX_DAYS = 45;
+/** Un cumpleaños se sigue mostrando un par de dias, por si cayo fin de semana. */
+const BIRTHDAY_WINDOW_DAYS = 2;
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -146,7 +150,7 @@ function followupTasks(alerts: CommercialAlert[]): TodayTask[] {
     .filter((alert) => (alert.status === "pending" || alert.status === "postponed") && alert.alertDate <= now)
     .map((alert) => {
       const car = [alert.vehicleBrand, alert.vehicleModel].filter(Boolean).join(" ");
-      const type = alert.alertType === "credit_installment_10" ? "Crédito, cuota 10" : "Postventa 12 meses";
+      const type = commercialAlertTypeLabel(alert.alertType);
       return {
         id: `followup-${alert.id}`,
         kind: "followup" as const,
@@ -161,15 +165,62 @@ function followupTasks(alerts: CommercialAlert[]): TodayTask[] {
     });
 }
 
+/** Fecha local de hoy ("2026-10-13"): a la noche la fecha UTC ya es la de mañana. */
+function localToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Clientes que cumplen años hoy o cumplieron en los ultimos dias. No se guarda nada en la
+ * base: la tarea sale de la fecha de nacimiento cargada en el Datero y se descarta desde
+ * la lista del dia (el id lleva el año, asi vuelve a aparecer el año siguiente).
+ */
+export function birthdayTasks(clients: Client[], today = localToday()): TodayTask[] {
+  const year = Number(today.slice(0, 4));
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const tasks: TodayTask[] = [];
+
+  for (const client of clients) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(client.fechaNacimiento.trim());
+    if (!match) continue;
+    // Los nacidos un 29 de febrero se saludan el 28 cuando el año no es bisiesto.
+    const day = match[2] === "02" && match[3] === "29" && !isLeap ? "28" : match[3];
+    const birthday = `${year}-${match[2]}-${day}`;
+    if (birthday > today) continue;
+    const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${birthday}T00:00:00Z`)) / 86400000);
+    if (days > BIRTHDAY_WINDOW_DAYS) continue;
+
+    const age = year - Number(match[1]);
+    const when = days === 0 ? "cumple hoy" : days === 1 ? "cumplió ayer" : `cumplió hace ${days} días`;
+    const greeting = days === 0 ? "¡Feliz cumpleaños" : "¡Feliz cumpleaños atrasado";
+    tasks.push({
+      id: `birthday-${client.id}-${year}`,
+      kind: "birthday",
+      title: client.nombre.trim() || "Cliente sin nombre",
+      detail: [when, age > 0 && age < 120 ? `${age} años` : ""].filter(Boolean).join(" · "),
+      // Es el unico aviso que pierde sentido si se deja pasar.
+      priority: 360 - days,
+      phone: client.celular || client.telefono,
+      // Sin nombre de pila: los clientes estan cargados a veces como "APELLIDO NOMBRE" y a veces al reves.
+      message: `${greeting}! Te mandamos un saludo grande de parte de todo el equipo de Jesús Díaz Automotores. Que tengas un gran día.`,
+      link: { to: `/ventas/clientes/${encodeURIComponent(client.id)}`, label: "Ver cliente" },
+    });
+  }
+
+  return tasks;
+}
+
 /** Arma la lista del dia. Si alguna fuente falla, el resto se muestra igual. */
 export async function loadTodayTasks(): Promise<TodayTask[]> {
-  const [leads, alerts, vehicles, quotes, pendings, priceItems] = await Promise.all([
+  const [leads, alerts, vehicles, quotes, pendings, priceItems, clients] = await Promise.all([
     listAssistantLeads().catch(() => []),
     listCommercialAlerts().catch(() => []),
     listVehicles().catch(() => []),
     listOpenQuotes().catch(() => []),
     listPendingItems().catch(() => []),
     listPriceListItems().catch(() => []),
+    listClients().catch(() => []),
   ]);
 
   const quoteTasks: TodayTask[] = quotes
@@ -219,6 +270,7 @@ export async function loadTodayTasks(): Promise<TodayTask[]> {
   return [
     ...leadTasks(leads, priceItems),
     ...requestTasks(leads, priceItems),
+    ...birthdayTasks(clients),
     ...followupTasks(alerts),
     ...quoteTasks,
     ...missingTasks,

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { VEHICLE_STATUS_LABELS } from "@/lib/vehicleLabels";
 import type { VehicleStatus } from "@/types/vehicles";
 
 const statusMap: Record<VehicleStatus, string> = {
@@ -14,8 +15,9 @@ const statusMap: Record<VehicleStatus, string> = {
 
 export function StatusBadge({ status }: { status: VehicleStatus }) {
   return (
-    <Badge className={cn("capitalize", statusMap[status])}>
-      {status.replaceAll("_", " ")}
+    <Badge className={cn("shrink-0 gap-1.5 whitespace-nowrap", statusMap[status])}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {VEHICLE_STATUS_LABELS[status] ?? status}
     </Badge>
   );
 }

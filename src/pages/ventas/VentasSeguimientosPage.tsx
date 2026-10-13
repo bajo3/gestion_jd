@@ -15,7 +15,7 @@ import {
   postponeCommercialAlert,
 } from "@/services/commercialAlertsService";
 import { listVehicles } from "@/services/vehiclesService";
-import type { CommercialAlert } from "@/types/commercialAlerts";
+import { commercialAlertTypeLabel, isPostSaleAlertType, type CommercialAlert } from "@/types/commercialAlerts";
 import type { Vehicle } from "@/types/vehicles";
 
 type FilterValue = "all" | "pending" | "credit" | "post_sale" | "contacted" | "postponed";
@@ -26,10 +26,6 @@ const statusLabels: Record<CommercialAlert["status"], string> = {
   postponed: "Pospuesta",
   dismissed: "Descartada",
 };
-
-function alertTypeLabel(type: CommercialAlert["alertType"]) {
-  return type === "credit_installment_10" ? "Credito cuota 10" : "Postventa 12 meses";
-}
 
 function statusClass(status: CommercialAlert["status"]) {
   if (status === "contacted") return "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -73,7 +69,7 @@ export function VentasSeguimientosPage() {
       .filter((alert) => {
         if (filter === "pending") return alert.status === "pending";
         if (filter === "credit") return alert.alertType === "credit_installment_10";
-        if (filter === "post_sale") return alert.alertType === "post_sale_12_months";
+        if (filter === "post_sale") return isPostSaleAlertType(alert.alertType);
         if (filter === "contacted") return alert.status === "contacted";
         if (filter === "postponed") return alert.status === "postponed";
         return alert.status !== "dismissed";
@@ -124,7 +120,7 @@ export function VentasSeguimientosPage() {
                       ) : null}
                     </div>
                     <p className="mt-1 text-sm text-slate-500">
-                      {alert.clientPhone || "Sin telefono"} · {alertTypeLabel(alert.alertType)}
+                      {alert.clientPhone || "Sin telefono"} · {commercialAlertTypeLabel(alert.alertType)}
                     </p>
                   </div>
 

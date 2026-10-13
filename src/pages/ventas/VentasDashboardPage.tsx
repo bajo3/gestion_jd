@@ -12,7 +12,7 @@ import { listFinalizedSales } from "@/services/clientsService";
 import { listCommercialAlerts } from "@/services/commercialAlertsService";
 import { listRecentVehicleEvents } from "@/services/vehicleEventsService";
 import { listVehicles } from "@/services/vehiclesService";
-import type { CommercialAlert } from "@/types/commercialAlerts";
+import { commercialAlertTypeLabel, isPostSaleAlertType, type CommercialAlert } from "@/types/commercialAlerts";
 import type { VehicleEvent } from "@/types/vehicleEvents";
 import type { Vehicle } from "@/types/vehicles";
 import type { FinalizedSale } from "@/types/clients";
@@ -30,10 +30,6 @@ function isDue(alert: CommercialAlert) {
 function isThisMonth(value?: string | null) {
   if (!value) return false;
   return value.slice(0, 7) === new Date().toISOString().slice(0, 7);
-}
-
-function alertTypeLabel(type: CommercialAlert["alertType"]) {
-  return type === "credit_installment_10" ? "Credito cuota 10" : "Postventa 12 meses";
 }
 
 function enrichAlerts(alerts: CommercialAlert[], vehicles: Vehicle[]) {
@@ -99,8 +95,8 @@ export function VentasDashboardPage() {
     },
     {
       label: "Postventa proxima",
-      value: String(activeAlerts.filter((alert) => alert.alertType === "post_sale_12_months").length),
-      detail: "12 meses desde egreso",
+      value: String(activeAlerts.filter((alert) => isPostSaleAlertType(alert.alertType)).length),
+      detail: "7 y 30 días, 6 y 12 meses",
       icon: <Clock className="h-5 w-5 text-fuchsia-600" />,
     },
     {
@@ -191,7 +187,7 @@ export function VentasDashboardPage() {
                         {isDue(alert) ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Vencida / hoy</Badge> : null}
                       </div>
                       <p className="text-sm text-slate-500">
-                        {alertTypeLabel(alert.alertType)} · {alert.vehicleBrand || "Auto"} {alert.vehicleModel || ""} {alert.vehicleLicensePlate ? `· ${alert.vehicleLicensePlate}` : ""}
+                        {commercialAlertTypeLabel(alert.alertType)} · {alert.vehicleBrand || "Auto"} {alert.vehicleModel || ""} {alert.vehicleLicensePlate ? `· ${alert.vehicleLicensePlate}` : ""}
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-slate-900">{formatDate(alert.alertDate)}</p>

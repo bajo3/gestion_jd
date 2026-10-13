@@ -12,9 +12,39 @@ const LOCKED_AUTO_STATUSES: CommercialAlertStatus[] = ["contacted", "dismissed"]
 const messageTemplates: Record<CommercialAlertType, string> = {
   credit_installment_10:
     "Hola {client_name}, ¿cómo estás? Soy Felipe de Gestión JD. Te escribo para hacer un seguimiento de tu financiación y saber cómo venís con el auto. Si necesitás revisar alguna opción o consultar por otra unidad, estoy a disposición.",
+  post_sale_7_days:
+    "Hola {client_name}, ¿cómo estás? Te escribo de Jesús Díaz Automotores para saber cómo te está yendo con el auto en estos primeros días. Cualquier duda o detalle que haya surgido, avisame y lo vemos. Y si quedaste conforme, nos ayuda mucho que nos dejes una reseña en Google.",
+  post_sale_30_days:
+    "Hola {client_name}, ¿cómo estás? Te escribo de Jesús Díaz Automotores. Ya pasó un mes desde la entrega y quería saber cómo venís con la transferencia y la documentación del auto (título y cédula). Si falta algo o necesitás una mano con el trámite, avisame.",
+  post_sale_6_months:
+    "Hola {client_name}, ¿cómo estás? Te escribo de Jesús Díaz Automotores. Ya van seis meses con el auto y quería saber cómo anda. Es un buen momento para hacerle el service; si necesitás algo, estoy a disposición.",
   post_sale_12_months:
     "Hola {client_name}, ¿cómo estás? Soy Felipe de Gestión JD. Te escribo porque ya pasó un tiempo desde que compraste tu auto con nosotros. Si estás pensando en cambiarlo o querés saber cuánto podemos tomarlo hoy, te puedo ayudar con una tasación y opciones disponibles.",
 };
+
+/** Dias de gracia para crear un contacto de la escalera cuya fecha ya paso. */
+const POST_SALE_GRACE_DAYS = 7;
+
+export type PostSaleStep = { alertType: CommercialAlertType; alertDate: string };
+
+/**
+ * Escalera de postventa a partir de la fecha de venta: 7 dias, 30 dias, 6 meses y 12 meses.
+ * Los contactos cortos que ya quedaron viejos no se devuelven: no tiene sentido preguntar
+ * "como te fue la primera semana" por una venta de hace meses. El de 12 meses va siempre.
+ */
+export function buildPostSaleSteps(saleDate: string, today = toDateOnly(new Date())): PostSaleStep[] {
+  const steps: PostSaleStep[] = [
+    { alertType: "post_sale_7_days", alertDate: addDays(saleDate, 7) },
+    { alertType: "post_sale_30_days", alertDate: addDays(saleDate, 30) },
+    { alertType: "post_sale_6_months", alertDate: addMonths(saleDate, 6) },
+    { alertType: "post_sale_12_months", alertDate: addMonths(saleDate, 12) },
+  ];
+  const oldestAllowed = addDays(today, -POST_SALE_GRACE_DAYS);
+
+  return steps.filter(
+    (step) => step.alertDate && (step.alertType === "post_sale_12_months" || step.alertDate >= oldestAllowed),
+  );
+}
 
 type DbCommercialAlert = {
   id: string;
@@ -41,6 +71,13 @@ function saveLocalAlerts(alerts: CommercialAlert[]) {
 
 function toDateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function addDays(dateValue: string, days: number) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return toDateOnly(date);
 }
 
 function addMonths(dateValue: string, months: number) {
@@ -185,7 +222,9 @@ async function upsertVehicleAlert(vehicle: Vehicle, alertType: CommercialAlertTy
 
 export async function syncCommercialAlertsForVehicle(vehicle: Vehicle) {
   if (vehicle.buyerName && vehicle.buyerPhone && vehicle.exitDate) {
-    await upsertVehicleAlert(vehicle, "post_sale_12_months", addMonths(vehicle.exitDate, 12));
+    for (const step of buildPostSaleSteps(vehicle.exitDate)) {
+      await upsertVehicleAlert(vehicle, step.alertType, step.alertDate);
+    }
   }
 
   if (vehicle.hasCredit && vehicle.creditStartDate) {

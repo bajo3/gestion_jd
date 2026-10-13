@@ -3,6 +3,7 @@ import { listAssistantLeads, summarizeLeads } from "@/services/leadsService";
 import { listCommercialAlerts } from "@/services/commercialAlertsService";
 import { listVehicles } from "@/services/vehiclesService";
 import { listRecentDocuments, normalizePlate, searchDocuments } from "@/services/documentsService";
+import { isPostSaleAlertType } from "@/types/commercialAlerts";
 import type { Vehicle } from "@/types/vehicles";
 
 export type WorkspaceAssistantAction = {
@@ -370,7 +371,7 @@ async function buildWorkspaceContext() {
     alerts: {
       active: alerts.filter((alert) => ["pending", "postponed"].includes(alert.status)).length,
       credit: alerts.filter((alert) => alert.alertType === "credit_installment_10" && ["pending", "postponed"].includes(alert.status)).length,
-      postSale: alerts.filter((alert) => alert.alertType === "post_sale_12_months" && ["pending", "postponed"].includes(alert.status)).length,
+      postSale: alerts.filter((alert) => isPostSaleAlertType(alert.alertType) && ["pending", "postponed"].includes(alert.status)).length,
     },
     documents: Object.entries(documentRoutes).map(([type, path]) => ({
       type,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Check, CheckCircle2, Copy, EyeOff, Loader2, MessageCircle } from "lucide-react";
+import { ArrowRight, Cake, Check, CheckCircle2, Copy, EyeOff, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { loadTodayTasks, TODAY_KIND_LABELS, type TodayTask, type TodayTaskKind }
 const KIND_STYLES: Record<TodayTaskKind, string> = {
   lead: "border-rose-200 bg-rose-50 text-rose-700",
   request: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  birthday: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
   followup: "border-amber-200 bg-amber-50 text-amber-700",
   quote: "border-sky-200 bg-sky-50 text-sky-700",
   missing_sale: "border-red-200 bg-red-50 text-red-700",
@@ -21,13 +22,14 @@ const KIND_STYLES: Record<TodayTaskKind, string> = {
 const KIND_SHORT: Record<TodayTaskKind, string> = {
   lead: "Lead",
   request: "Encargo",
+  birthday: "Cumpleaños",
   followup: "Seguimiento",
   quote: "Presupuesto",
   missing_sale: "Venta incompleta",
   pending: "Pendiente",
 };
 
-const KIND_ORDER: TodayTaskKind[] = ["lead", "request", "followup", "quote", "missing_sale", "pending"];
+const KIND_ORDER: TodayTaskKind[] = ["lead", "request", "birthday", "followup", "quote", "missing_sale", "pending"];
 const COLLAPSED_COUNT = 6;
 const DISMISSED_KEY = "gestion_jd_today_dismissed";
 
@@ -109,7 +111,7 @@ export function TodayPanel() {
     }
   };
 
-  /** Para ventas de prueba: la tarea deja de mostrarse en este navegador, sin tocar ningun dato. */
+  /** Ventas de prueba y cumpleaños ya saludados: la tarea deja de mostrarse en este navegador, sin tocar ningun dato. */
   const dismiss = (task: TodayTask) => {
     saveDismissed([...readDismissed(), task.id]);
     setTasks((current) => current.filter((item) => item.id !== task.id));
@@ -208,6 +210,12 @@ export function TodayPanel() {
                           <Check className="mr-1.5 h-3.5 w-3.5" />
                         )}
                         Ya le escribí
+                      </Button>
+                    ) : null}
+                    {task.kind === "birthday" ? (
+                      <Button variant="secondary" className="px-3 py-2 text-xs" onClick={() => dismiss(task)}>
+                        <Cake className="mr-1.5 h-3.5 w-3.5" />
+                        Ya lo saludé
                       </Button>
                     ) : null}
                     {task.kind === "missing_sale" ? (

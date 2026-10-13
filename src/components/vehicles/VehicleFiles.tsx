@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { FileText, Image as ImageIcon, Paperclip, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Download, FileText, Image as ImageIcon, Paperclip, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
+import { VEHICLE_FILE_CATEGORY_LABELS } from "@/lib/vehicleLabels";
 import type { VehicleFile } from "@/types/vehicles";
 
 function isImage(file: VehicleFile) {
@@ -20,9 +21,13 @@ function isDataUrl(url?: string) {
 type VehicleFilesProps = {
   files: VehicleFile[];
   onDelete?: (file: VehicleFile) => void | Promise<void>;
+  /** Boton u otra accion a la derecha del titulo. */
+  headerAction?: ReactNode;
+  /** Contenido extra entre el titulo y la lista (por ejemplo, el formulario para adjuntar). */
+  children?: ReactNode;
 };
 
-export function VehicleFiles({ files, onDelete }: VehicleFilesProps) {
+export function VehicleFiles({ files, onDelete, headerAction, children }: VehicleFilesProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
 
@@ -76,98 +81,99 @@ export function VehicleFiles({ files, onDelete }: VehicleFilesProps) {
   return (
     <Card>
       <CardContent className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-950">Adjuntos</h3>
-          <p className="text-sm text-slate-500">Documentacion asociada al vehiculo.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-950">
+              Adjuntos
+              {files.length ? <span className="ml-2 text-sm font-medium text-slate-400">{files.length}</span> : null}
+            </h3>
+            <p className="text-sm text-slate-500">Documentación asociada al vehículo.</p>
+          </div>
+          {headerAction}
         </div>
+
+        {children}
 
         {files.length ? (
           <>
-            <div className="space-y-2">
+            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
               {files.map((file) => {
                 const resolvedUrl = resolvedUrls[file.id] || file.fileUrl || "";
                 const selected = file.id === activeSelectedId;
 
                 return (
-                  <div
+                  <li
                     key={file.id}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-3"
+                    className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="rounded-xl bg-slate-100 p-2.5">
-                          {isImage(file) ? (
-                            <ImageIcon className="h-4 w-4" />
-                          ) : (
-                            <FileText className="h-4 w-4" />
-                          )}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {file.fileName}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {file.category.replaceAll("_", " ")} • {file.fileType || "sin tipo"}
-                          </p>
-                          <p className="text-xs text-slate-400">{formatDateTime(file.createdAt)}</p>
-                          {file.notes ? (
-                            <p className="mt-1 text-xs text-slate-600">{file.notes}</p>
-                          ) : null}
-                        </div>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="rounded-lg bg-slate-100 p-2 text-slate-600">
+                        {isImage(file) ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        {resolvedUrl ? (
-                          <>
-                            <Button
-                              variant={selected ? "secondary" : "outline"}
-                              onClick={() => setSelectedId(selected ? null : file.id)}
-                            >
-                              {selected ? "Ocultar" : "Ver"}
-                            </Button>
-                            <a
-                              href={resolvedUrl}
-                              download={file.fileName}
-                              className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
-                            >
-                              Descargar
-                            </a>
-                          </>
-                        ) : (
-                          <span className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-500">
-                            <Paperclip className="h-3.5 w-3.5" />
-                            Archivo viejo sin contenido recuperable
-                          </span>
-                        )}
-
-                        {onDelete ? (
-                          <Button variant="destructive" onClick={() => onDelete(file)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Borrar
-                          </Button>
-                        ) : null}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{file.fileName}</p>
+                        <p className="text-xs text-slate-500">
+                          {VEHICLE_FILE_CATEGORY_LABELS[file.category] ?? file.category} ·{" "}
+                          {formatDateTime(file.createdAt)}
+                        </p>
+                        {file.notes ? <p className="mt-0.5 text-xs text-slate-600">{file.notes}</p> : null}
                       </div>
                     </div>
-                  </div>
+
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {resolvedUrl ? (
+                        <>
+                          <Button
+                            variant={selected ? "secondary" : "outline"}
+                            className="h-9 px-3 py-0"
+                            onClick={() => setSelectedId(selected ? null : file.id)}
+                          >
+                            {selected ? "Ocultar" : "Ver"}
+                          </Button>
+                          <a
+                            href={resolvedUrl}
+                            download={file.fileName}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            <Download className="h-4 w-4" />
+                            Descargar
+                          </a>
+                        </>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-500">
+                          <Paperclip className="h-3.5 w-3.5" />
+                          Archivo viejo sin contenido recuperable
+                        </span>
+                      )}
+
+                      {onDelete ? (
+                        <Button
+                          variant="ghost"
+                          className="h-9 px-2.5 py-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          aria-label={`Borrar ${file.fileName}`}
+                          title="Borrar"
+                          onClick={() => onDelete(file)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
 
             {selectedFile && selectedUrl ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">Vista previa</p>
-                    <p className="text-xs text-slate-500">{selectedFile.fileName}</p>
+                    <p className="truncate text-xs text-slate-500">{selectedFile.fileName}</p>
                   </div>
-                  <a
-                    href={selectedUrl}
-                    download={selectedFile.fileName}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-                  >
-                    Descargar
-                  </a>
+                  <Button variant="ghost" className="h-9 px-3 py-0" onClick={() => setSelectedId(null)}>
+                    Cerrar
+                  </Button>
                 </div>
 
                 {isImage(selectedFile) ? (
@@ -194,7 +200,7 @@ export function VehicleFiles({ files, onDelete }: VehicleFilesProps) {
 
                 {!isImage(selectedFile) && !isPdf(selectedFile) ? (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
-                    Este tipo de archivo no tiene preview embebida. Podes descargarlo desde el boton de arriba.
+                    Este tipo de archivo no tiene vista previa. Podés descargarlo desde el botón de la lista.
                   </div>
                 ) : null}
               </div>
@@ -202,7 +208,7 @@ export function VehicleFiles({ files, onDelete }: VehicleFilesProps) {
           </>
         ) : (
           <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Este auto todavia no tiene archivos adjuntos.
+            Este auto todavía no tiene archivos adjuntos.
           </div>
         )}
       </CardContent>

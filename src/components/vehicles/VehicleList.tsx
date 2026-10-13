@@ -1,18 +1,42 @@
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/vehicles/StatusBadge";
 import { VehicleCard } from "@/components/vehicles/VehicleCard";
-import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Vehicle } from "@/types/vehicles";
 
-export function VehicleList({ vehicles }: { vehicles: Vehicle[] }) {
+type VehicleListProps = {
+  vehicles: Vehicle[];
+  /** Hay una busqueda o un filtro activo: la lista vacia no significa que no haya autos cargados. */
+  filtered?: boolean;
+  onClearFilters?: () => void;
+  /** Algun auto del listado tiene foto: todas las cards reservan el espacio de la imagen. */
+  showCovers?: boolean;
+};
+
+export function VehicleList({ vehicles, filtered = false, onClearFilters, showCovers = false }: VehicleListProps) {
+  if (!vehicles.length && filtered) {
+    return (
+      <Card>
+        <CardContent className="py-14 text-center">
+          <p className="text-lg font-semibold text-slate-900">No hay autos que coincidan.</p>
+          <p className="mt-2 text-sm text-slate-500">Probá con otra búsqueda o sacá el filtro de estado.</p>
+          {onClearFilters ? (
+            <Button variant="outline" className="mt-5" onClick={onClearFilters}>
+              Ver todos los autos
+            </Button>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!vehicles.length) {
     return (
       <Card>
         <CardContent className="py-16 text-center">
-          <p className="text-lg font-semibold text-slate-900">Todavia no hay autos cargados.</p>
+          <p className="text-lg font-semibold text-slate-900">Todavía no hay autos cargados.</p>
           <p className="mt-2 text-sm text-slate-500">
-            Empeza creando el primer registro del historial de la agencia.
+            Empezá creando el primer registro del historial de la agencia.
           </p>
           <Link
             to="/autos/nuevo"
@@ -26,63 +50,10 @@ export function VehicleList({ vehicles }: { vehicles: Vehicle[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 xl:hidden">
-        {vehicles.map((vehicle) => (
-          <VehicleCard key={vehicle.id} vehicle={vehicle} />
-        ))}
-      </div>
-
-      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:block">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs uppercase tracking-[0.18em] text-slate-500">
-                <th className="px-5 py-4">Auto</th>
-                <th className="px-5 py-4">Estado</th>
-                <th className="px-5 py-4">Ingreso</th>
-                <th className="px-5 py-4">KM</th>
-                <th className="px-5 py-4">Compra</th>
-                <th className="px-5 py-4">Venta</th>
-                <th className="px-5 py-4">Adjuntos</th>
-                <th className="px-5 py-4"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {vehicles.map((vehicle) => (
-                <tr key={vehicle.id} className="text-sm text-slate-700">
-                  <td className="px-5 py-4">
-                    <div className="font-semibold text-slate-950">
-                      {vehicle.brand} {vehicle.model}
-                    </div>
-                    <div className="text-slate-500">
-                      {vehicle.licensePlate || "Sin patente"} {vehicle.year ? `• ${vehicle.year}` : ""}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge status={vehicle.status} />
-                  </td>
-                  <td className="px-5 py-4">{formatDate(vehicle.entryDate)}</td>
-                  <td className="px-5 py-4">{vehicle.kilometers?.toLocaleString("es-AR") || "—"}</td>
-                  <td className="px-5 py-4">
-                    {vehicle.purchasePrice ? formatCurrency(vehicle.purchasePrice) : "—"}
-                  </td>
-                  <td className="px-5 py-4">{vehicle.salePrice ? formatCurrency(vehicle.salePrice) : "—"}</td>
-                  <td className="px-5 py-4">{vehicle.files.length}</td>
-                  <td className="px-5 py-4 text-right">
-                    <Link
-                      to={`/autos/${vehicle.id}`}
-                      className="rounded-lg border border-slate-300 px-3 py-2 font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Ver
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {vehicles.map((vehicle) => (
+        <VehicleCard key={vehicle.id} vehicle={vehicle} showCover={showCovers} />
+      ))}
     </div>
   );
 }
