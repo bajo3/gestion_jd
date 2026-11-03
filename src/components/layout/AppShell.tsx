@@ -118,7 +118,7 @@ export function AppShell() {
         collapsed ? "w-[96px]" : "w-[292px]",
       )}
     >
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-5">
+      <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-5">
         <Link
           to="/"
           className={cn("overflow-hidden transition-all", collapsed ? "w-0 opacity-0" : "w-full opacity-100")}
@@ -146,7 +146,7 @@ export function AppShell() {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navigation.map((item) => {
           const Icon = item.icon;
           return (
@@ -190,7 +190,7 @@ export function AppShell() {
         })}
       </nav>
 
-      <div className="border-t border-white/10 p-3">
+      <div className="shrink-0 border-t border-white/10 p-3">
         <Button
           variant="secondary"
           className={cn(
