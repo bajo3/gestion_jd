@@ -1,4 +1,4 @@
-import { resolveShared, toShared } from "@/lib/sharedData";
+import { resolveShared, toShared, type SharedData } from "@/lib/sharedData";
 import { parseNumberish } from "@/lib/utils";
 import { toVehicleInput } from "@/lib/vehicleInput";
 import {
@@ -210,7 +210,7 @@ function operationLink(clientId: string, operationId: string): SaleSyncLink {
  */
 export async function syncDateroGenerated(
   values: DateroFormValues,
-  context: { operationId?: string; vehicleId?: string; documentId?: string },
+  context: { operationId?: string; vehicleId?: string; documentId?: string; shared?: SharedData },
 ): Promise<SaleSyncResult> {
   const messages: string[] = [];
   const warnings: string[] = [];
@@ -229,7 +229,7 @@ export async function syncDateroGenerated(
     details: {},
   });
 
-  const saved = await saveDateroWorkflow(values, { operationId: context.operationId, vehicleId: sold?.vehicle.id });
+  const saved = await saveDateroWorkflow(values, { operationId: context.operationId, vehicleId: sold?.vehicle.id, shared: context.shared });
   rememberWorkingData({
     clientId: saved.client.id,
     operationId: saved.operation.id,

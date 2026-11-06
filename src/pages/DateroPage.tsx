@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -11,12 +12,13 @@ import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { useSharedFlow } from "@/hooks/useSharedFlow";
 import { definedOnly, fromShared, nextDocumentLinks, resolveShared } from "@/lib/sharedData";
 import { rememberWorkingData } from "@/services/workingData";
-import { saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
+import { normalizeDni, saveClientDocument, saveDateroWorkflow } from "@/services/clientsService";
 import { syncDateroGenerated } from "@/services/saleSyncService";
 import { generateDateroPdf } from "@/pdf/dateroPdf";
 import { DniScanButton } from "@/components/documents/DniScanButton";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
+import { completeDateroWithAi, type DateroAiResult } from "@/services/dateroAiService";
 import type { DateroFormValues } from "@/types/forms";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
 
@@ -59,6 +61,23 @@ export function DateroPage() {
   const [savedContext, setSavedContext] = useState<{ clientId: string; operationId: string; warning?: string } | null>(null);
   const generatedDocumentId = useRef<string | undefined>(undefined);
   const flow = useSharedFlow("datero", workflow, values, form.replace);
+  const [ai, setAi] = useState<DateroAiResult | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  /** Lee los "Detalles" con IA; lo que entienda se guarda en la operacion para el resto de los documentos. */
+  const readDetailsWithAi = async () => {
+    // Sin DNI la operacion no se guarda: no tiene sentido leer los detalles.
+    if (!normalizeDni(values.dni)) return undefined;
+    setAiBusy(true);
+    try {
+      const result = await completeDateroWithAi(values, workflow.vehicle);
+      setAi(result);
+      return result?.ok ? result.shared : undefined;
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   useEffect(() => {
     const stored = workflow.operation?.data as (Partial<DateroFormValues> & { shared?: unknown }) | undefined;
@@ -78,9 +97,12 @@ export function DateroPage() {
   }, [form, values.dominio, workflow.vehicle]);
 
   const save = async (createNewOperation = false) => {
+    if (saving) return;
+    setSaving(true);
     try {
       const currentOperationId = createNewOperation ? undefined : params.get("operationId") || savedContext?.operationId || flow.operation?.id;
-      const result = await saveDateroWorkflow(values, { operationId: currentOperationId, vehicleId: params.get("vehicleId") || undefined, createNewOperation });
+      const shared = await readDetailsWithAi();
+      const result = await saveDateroWorkflow(values, { operationId: currentOperationId, vehicleId: params.get("vehicleId") || undefined, createNewOperation, shared });
       const documentResult = await saveClientDocument({ id: createNewOperation ? undefined : workflow.saved?.id, clientId: result.client.id, operationId: result.operation.id, documentType: "datero", status: "generado", data: values as unknown as Record<string, unknown> });
       rememberWorkingData({
         clientId: result.client.id,
@@ -91,6 +113,8 @@ export function DateroPage() {
       setSavedContext({ clientId: result.client.id, operationId: result.operation.id, warning: result.warning || documentResult.warning });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "No se pudo guardar el datero");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -144,8 +168,15 @@ export function DateroPage() {
             </FormField>
           ))}
         </FormGrid>
-        <FormField label="Detalles">
-          <Textarea value={values.detalles} onChange={(event) => form.set("detalles", event.target.value)} />
+        <FormField
+          label="Detalles de la operación"
+          hint="Escribí las condiciones como las anotarías: al guardar o generar, la IA las lee y completa Compra y Venta, Recibo, Presupuesto y Operación finalizada."
+        >
+          <Textarea
+            value={values.detalles}
+            onChange={(event) => form.set("detalles", event.target.value)}
+            placeholder="Ej: Precio $25.000.000. Deja $500.000 de seña por transferencia, entrega $10.000.000 en efectivo y un Fiat Cronos 2020 AE416TM con 60.000 km que se toma en $12.000.000. El resto en 12 cuotas de $280.000."
+          />
         </FormField>
       </FormSection>
 
@@ -210,17 +241,19 @@ export function DateroPage() {
       </FormSection>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <Button variant="outline" onClick={() => save(false)}>{savedContext ? "Guardar cambios" : "Guardar cliente y operación"}</Button>
-        {params.get("operationId") ? <Button variant="secondary" onClick={() => save(true)}>Guardar nueva operación</Button> : null}
+        <Button variant="outline" disabled={saving} onClick={() => save(false)}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{savedContext ? "Guardar cambios" : "Guardar cliente y operación"}</Button>
+        {params.get("operationId") ? <Button variant="secondary" disabled={saving} onClick={() => save(true)}>Guardar nueva operación</Button> : null}
         <GenerateDocumentButton
           documentType="datero"
           values={values}
           onGenerate={() => generateDateroPdf(values)}
           afterGenerate={async () => {
+            const shared = await readDetailsWithAi();
             const result = await syncDateroGenerated(values, {
               operationId: params.get("operationId") || savedContext?.operationId || flow.operation?.id,
               vehicleId: params.get("vehicleId") || workflow.vehicle?.id,
               documentId: generatedDocumentId.current ?? workflow.saved?.id,
+              shared,
             });
             generatedDocumentId.current = result.document?.id ?? generatedDocumentId.current;
             if (result.clientId && result.operationId) {
@@ -241,6 +274,42 @@ export function DateroPage() {
           }}
         />
       </div>
+      {aiBusy ? (
+        <p className="flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Leyendo los detalles con IA para completar los demás documentos…
+        </p>
+      ) : ai?.ok ? (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950">
+          <p className="flex items-center gap-2 font-semibold">
+            <Sparkles className="h-4 w-4 text-violet-600" />
+            {ai.summary.length ? "La IA completó los demás documentos con esto" : "La IA no encontró condiciones de venta en los detalles"}
+          </p>
+          {ai.summary.length ? (
+            <ul className="mt-2 space-y-1">
+              {ai.summary.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {ai.doubts.length ? (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <p className="font-semibold">Para revisar</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {ai.doubts.map((doubt) => (
+                  <li key={doubt}>{doubt}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <p className="mt-3 text-xs text-violet-800">Cada documento se abre con estos datos y se pueden corregir antes de generarlo.</p>
+        </div>
+      ) : ai && ai.ok === false ? (
+        <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>No se pudieron leer los detalles con IA: {ai.error} Los demás documentos se completan igual con los datos del Datero.</span>
+        </p>
+      ) : null}
       {savedContext ? <div className={`rounded-2xl border p-4 text-sm ${savedContext.warning ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}><strong>{savedContext.warning ? "Borrador local." : "Cliente guardado."}</strong> Ya podés completar todos los documentos con los mismos datos.{savedContext.warning ? <p className="mt-1">{savedContext.warning} Reintentá guardar cuando Supabase esté disponible.</p> : null}<div className="mt-3 flex flex-wrap gap-2"><Link to={`/recibo?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Abrir recibo</Button></Link><Link to={`/presupuesto-cliente?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Preparar presupuesto</Button></Link><Link to={`/operacion-finalizada?clientId=${savedContext.clientId}&operationId=${savedContext.operationId}`}><Button variant="secondary">Ir a operación finalizada</Button></Link></div></div> : null}
     </DocumentPage>
   );

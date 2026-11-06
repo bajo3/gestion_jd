@@ -37,6 +37,11 @@ export const SHARED_KEYS = [
   "usadoAnio",
   "usadoKm",
   "usadoToma",
+  // Condiciones de la venta que la IA lee de los "Detalles" del Datero.
+  "moneda",
+  "sena",
+  "formaPago",
+  "observaciones",
 ] as const;
 
 export type SharedKey = (typeof SHARED_KEYS)[number];
@@ -245,6 +250,9 @@ export function fromShared(type: SharedDocType, s: SharedData): Values {
         domicilio: s.domicilio,
         localidad: joinPlace(s),
         concepto: s.nombre ? `Seña de operación de ${s.nombre}` : undefined,
+        moneda: s.moneda === "USD" ? "USD" : undefined,
+        monto: s.sena || s.entregaEfectivo,
+        forma: s.formaPago,
         vehiculo: vehicleText,
         vehiculoDominio: s.dominio,
       };
@@ -280,6 +288,7 @@ export function fromShared(type: SharedDocType, s: SharedData): Values {
         nMotor: s.motor,
         nChasis: s.chasis,
         cantidadNum: s.precio,
+        observaciones: s.observaciones,
       };
     case "presupuesto_cliente":
     case "operacion_finalizada":
@@ -287,6 +296,7 @@ export function fromShared(type: SharedDocType, s: SharedData): Values {
         nombre: s.nombre,
         dni: s.dni,
         telefono: s.telefono,
+        moneda: s.moneda === "USD" ? "USD" : undefined,
         vehModelo: vehicleText,
         vehAnio: s.anio,
         vehKm: s.km,
@@ -306,12 +316,14 @@ export function fromShared(type: SharedDocType, s: SharedData): Values {
   }
 }
 
-/** Estos valores por defecto cuentan como "vacio": "no" es lo que trae el formulario sin tocar. */
+/** Estos valores por defecto cuentan como "vacio": es lo que trae el formulario sin tocar. */
 function isEmptyValue(key: string, value: unknown) {
   if (value === undefined || value === null) return true;
   if (typeof value === "string") {
     if (!value.trim()) return true;
     if ((key === "tomaCredito" || key === "entregaPpa") && value === "no") return true;
+    if (key === "moneda" && value === "ARS") return true;
+    if (key === "forma" && value === "Efectivo") return true;
   }
   return false;
 }
