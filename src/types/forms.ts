@@ -78,6 +78,7 @@ export type ReciboFormValues = {
   domicilio: string;
   localidad: string;
   concepto: string;
+  moneda: "ARS" | "USD";
   monto: string;
   montoLetras: string;
   forma: string;

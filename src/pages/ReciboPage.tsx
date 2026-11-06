@@ -30,6 +30,7 @@ const initialState: ReciboFormValues = {
   domicilio: "",
   localidad: "",
   concepto: "",
+  moneda: "ARS",
   monto: "",
   montoLetras: "",
   forma: "Efectivo",
@@ -65,9 +66,9 @@ export function ReciboPage() {
   useEffect(() => {
     const amount = parseNumberish(values.monto);
     if (!Number.isNaN(amount)) {
-      form.set("montoLetras", amountToLetters(amount));
+      form.set("montoLetras", amountToLetters(amount, values.moneda));
     }
-  }, [form, values.monto]);
+  }, [form, values.monto, values.moneda]);
 
   return (
     <DocumentPage title="Recibo" description="Recibo de seña o pago con correlativo local y opcion de duplicado.">
@@ -126,7 +127,13 @@ export function ReciboPage() {
 
       <FormSection title="Importe y vehiculo">
         <FormGrid>
-          <FormField label="Monto (ARS)">
+          <FormField label="Moneda">
+            <Select value={values.moneda} onChange={(event) => form.set("moneda", event.target.value as ReciboFormValues["moneda"])}>
+              <option value="ARS">Pesos (ARS)</option>
+              <option value="USD">Dólares (USD)</option>
+            </Select>
+          </FormField>
+          <FormField label={`Monto (${values.moneda})`}>
             <CurrencyInput value={values.monto} onChange={(value) => form.set("monto", value)} />
           </FormField>
           <FormField label="En letras">

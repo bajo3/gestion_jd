@@ -23,27 +23,31 @@ function toSpanish(n: number): string {
   if (n < 1_000_000) {
     const M = Math.floor(n / 1000);
     const R = n % 1000;
-    return (M === 1 ? "mil" : `${toSpanish(M)} mil`) + (R ? ` ${toSpanish(R)}` : "");
+    return (M === 1 ? "mil" : `${toSpanish(M).replace(/veintiuno$/, "veintiún").replace(/uno$/, "un")} mil`) + (R ? ` ${toSpanish(R)}` : "");
   }
   const MI = Math.floor(n / 1_000_000);
   const R = n % 1_000_000;
   return (MI === 1 ? "un millon" : `${toSpanish(MI)} millones`) + (R ? ` ${toSpanish(R)}` : "");
 }
 
-export function amountToLetters(amount: number) {
+export function amountToLetters(amount: number, moneda: "ARS" | "USD" = "ARS") {
   const whole = Math.floor(amount);
-  const cents = Math.round((amount - whole) * 100);
-  if (whole === 0) return `cero pesos con ${String(cents).padStart(2, "0")}/100`;
-  return `${toSpanish(whole)} ${whole === 1 ? "peso" : "pesos"} con ${String(cents).padStart(2, "0")}/100`;
+  const cents = String(Math.round((amount - whole) * 100)).padStart(2, "0");
+  const [singular, plural] = moneda === "USD" ? ["dólar estadounidense", "dólares estadounidenses"] : ["peso", "pesos"];
+  if (whole === 0) return `cero ${plural} con ${cents}/100`;
+  // "uno"/"veintiuno" pierden la o delante del sustantivo: "un dólar", "veintiún pesos".
+  const words = toSpanish(whole).replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
+  return `${words} ${whole === 1 ? singular : plural} con ${cents}/100`;
 }
 
 export async function generateReciboPdf(values: ReciboFormValues) {
   const doc = createPdf();
 
+  const moneda = values.moneda === "USD" ? "USD" : "ARS";
   const currency = (n: number) =>
     new Intl.NumberFormat("es-AR", {
       style: "currency",
-      currency: "ARS",
+      currency: moneda,
       minimumFractionDigits: 2,
     }).format(Number(n || 0));
 
@@ -120,9 +124,9 @@ export async function generateReciboPdf(values: ReciboFormValues) {
     drawSection(y, "Importe");
     y += 10;
     const amount = parseNumberish(values.monto);
-    drawField(y, "Monto (ARS)", currency(amount));
+    drawField(y, `Monto (${moneda})`, currency(amount));
     y += 8;
-    drawField(y, "En letras", values.montoLetras || amountToLetters(amount));
+    drawField(y, "En letras", values.montoLetras || amountToLetters(amount, moneda));
     y += 8;
     drawField(y, "Forma de pago", values.forma);
     y += 8;
