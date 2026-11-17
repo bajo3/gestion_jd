@@ -66,6 +66,9 @@ export type DateroFormValues = {
   ppaMarca: string;
   ppaModelo: string;
   ppaAnio: string;
+  /** Enlaces a las fotos del DNI guardadas en el archivo. */
+  dniFrenteUrl?: string;
+  dniDorsoUrl?: string;
 };
 
 export type ReciboFormValues = {

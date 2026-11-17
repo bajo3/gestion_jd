@@ -15,6 +15,9 @@ export type DniData = {
   fechaNacimiento: string;
   /** Solo si el DNI trae los digitos del CUIL. */
   cuil: string;
+  /** Del dorso, solo cuando lo lee la IA (el codigo de barras no lo trae). */
+  domicilio?: string;
+  lugarNacimiento?: string;
 };
 
 function titleCase(value: string) {

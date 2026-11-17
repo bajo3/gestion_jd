@@ -1,3 +1,4 @@
+import { DniPhotoLinks } from "@/components/documents/DniPhotoLinks";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CarFront, ExternalLink, FileText, Loader2, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
@@ -85,6 +86,7 @@ function CurrentDocumentCard({ document }: { document: ClientDocument }) {
         <p className="text-xs text-slate-500">Estado: {document.status === "generado" ? "Generado" : "Borrador"}{fileUrl ? "" : " · El PDF se descarga desde el documento."}</p>
       </div>
       <div className="flex flex-wrap gap-2">
+        <DniPhotoLinks data={document.data} />
         {fileUrl ? <a href={fileUrl} target="_blank" rel="noreferrer"><Button variant="outline"><ExternalLink className="mr-2 h-4 w-4" />Abrir PDF</Button></a> : null}
         <Link to={documentUrl(document)}><Button variant={fileUrl ? "ghost" : "outline"}><FileText className="mr-2 h-4 w-4" />{fileUrl ? "Ver datos" : "Abrir documento"}</Button></Link>
       </div>

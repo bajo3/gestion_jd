@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { DniPhotoLinks } from "@/components/documents/DniPhotoLinks";
 import { consultaDocumentLabels, formatConsultaAmount, searchConsultas, type ConsultaDocument, type ConsultaFilter } from "@/services/consultasService";
 
 const documentEditorPaths = {
@@ -41,6 +42,7 @@ function DocumentCard({ document }: { document: ConsultaDocument }) {
   const [expanded, setExpanded] = useState(false);
   const entries = useMemo(
     () => Object.entries(document.formData)
+      .filter(([key]) => !key.endsWith("Url"))
       .map(([key, value]) => [prettifyKey(key), formatValue(value)] as const)
       .filter(([, value]) => value),
     [document.formData],
@@ -71,6 +73,7 @@ function DocumentCard({ document }: { document: ConsultaDocument }) {
           ) : (
             <Link to={documentEditorUrl(document)}><Button variant="outline"><FileText className="mr-2 h-4 w-4" />Abrir documento</Button></Link>
           )}
+          <DniPhotoLinks data={document.formData} />
           <Button variant="ghost" onClick={() => setExpanded((current) => !current)}>{expanded ? "Ocultar datos" : "Ver datos"}</Button>
         </div>
       </div>

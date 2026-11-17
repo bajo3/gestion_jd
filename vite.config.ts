@@ -6,6 +6,7 @@ import { parseAssistantWithGlm } from "./api/ai-assistant.js";
 import { runWorkspaceAssistant } from "./api/workspace-assistant.js";
 import { syncPriceListToSheet } from "./api/sheets-sync.js";
 import { scanBoleto } from "./api/boleto-scan.js";
+import { scanDni } from "./api/dni-scan.js";
 import { completeDatero } from "./api/datero-ai.js";
 
 export default defineConfig(({ mode }) => {
@@ -16,6 +17,7 @@ export default defineConfig(({ mode }) => {
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_WORKSPACE_ID",
     "BOLETO_MODEL",
+    "DNI_MODEL",
     "DATERO_MODEL",
     "ZAI_MODEL",
     "ZAI_BASE_URL",
@@ -84,6 +86,10 @@ export default defineConfig(({ mode }) => {
 
           server.middlewares.use("/api/boleto-scan", async (request, response) => {
             handlePost(request, response, scanBoleto);
+          });
+
+          server.middlewares.use("/api/dni-scan", async (request, response) => {
+            handlePost(request, response, scanDni);
           });
 
           server.middlewares.use("/api/datero-ai", async (request, response) => {

@@ -1,12 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/shared/FormField";
 import { useObjectState } from "@/hooks/useObjectState";
 import { useDocumentWorkflow } from "@/hooks/useDocumentWorkflow";
 import { useSharedFlow } from "@/hooks/useSharedFlow";
 import { generateFormularioClientePdf } from "@/pdf/formularioClientePdf";
-import { DniScanButton } from "@/components/documents/DniScanButton";
-import { readDniFromImage } from "@/lib/dniBarcode";
+import { DniPhotos } from "@/components/documents/DniPhotos";
 import { GenerateDocumentButton } from "@/components/documents/GenerateDocumentButton";
 import { consumeDocumentDraft } from "@/services/documentDraftService";
 import { DocumentContextBar, DocumentPage, DocumentPersistenceStatus, FormGrid, FormSection } from "./documentUtils";
@@ -15,27 +14,18 @@ type ClientState = {
   dni: string;
   cuil: string;
   situacionLaboral: string;
-  dniFrente: File | null;
-  dniDorso: File | null;
+  /** Enlaces a las fotos del DNI guardadas en el archivo. */
+  dniFrenteUrl: string;
+  dniDorsoUrl: string;
 };
 
 const initialState: ClientState = {
   dni: "",
   cuil: "",
   situacionLaboral: "",
-  dniFrente: null,
-  dniDorso: null,
+  dniFrenteUrl: "",
+  dniDorsoUrl: "",
 };
-
-function ImagePreview({ file }: { file: File | null }) {
-  const src = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file]);
-
-  if (!file) {
-    return <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">Todavia no se cargo una imagen.</div>;
-  }
-
-  return <img src={src} alt={file.name} className="h-56 w-full rounded-2xl border border-slate-200 object-contain bg-white" />;
-}
 
 export function FormularioClientePage() {
   const [values, form] = useObjectState(initialState);
@@ -57,13 +47,19 @@ export function FormularioClientePage() {
       <DocumentContextBar client={flow.client} operation={flow.operation} />
       {flow.banner}
       <DocumentPersistenceStatus loading={workflow.loading} mode={workflow.mode} error={workflow.error} />
-      <FormSection title="Datos del cliente">
-        <DniScanButton
+      <FormSection title="Fotos del DNI">
+        <DniPhotos
+          frenteUrl={values.dniFrenteUrl}
+          dorsoUrl={values.dniDorsoUrl}
+          onChange={(side, url) => form.set(side === "frente" ? "dniFrenteUrl" : "dniDorsoUrl", url)}
           onRead={(dni) => {
-            form.set("dni", dni.dni);
+            if (dni.dni) form.set("dni", dni.dni);
             if (dni.cuil) form.set("cuil", dni.cuil);
           }}
         />
+      </FormSection>
+
+      <FormSection title="Datos del cliente">
         <FormGrid columns="md:grid-cols-3">
           <FormField label="DNI">
             <Input value={values.dni} onChange={(event) => form.set("dni", event.target.value)} />
@@ -89,58 +85,17 @@ export function FormularioClientePage() {
         </FormGrid>
       </FormSection>
 
-      <FormSection title="Documentacion adjunta">
-        <FormGrid columns="md:grid-cols-2">
-          <FormField label="DNI frente">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                form.set("dniFrente", file);
-                // Con la foto del frente ya cargada, el numero y el CUIL se leen del codigo de barras.
-                if (file) {
-                  void readDniFromImage(file)
-                    .then((dni) => {
-                      if (!dni) return;
-                      form.set("dni", dni.dni);
-                      if (dni.cuil) form.set("cuil", dni.cuil);
-                    })
-                    .catch(() => undefined);
-                }
-              }}
-            />
-          </FormField>
-          <FormField label="DNI dorso">
-            <Input type="file" accept="image/*" onChange={(event) => form.set("dniDorso", event.target.files?.[0] ?? null)} />
-          </FormField>
-        </FormGrid>
-      </FormSection>
-
-      <FormSection title="Vista previa">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-900">DNI frente</p>
-            <ImagePreview file={values.dniFrente} />
-          </div>
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-900">DNI dorso</p>
-            <ImagePreview file={values.dniDorso} />
-          </div>
-        </div>
-      </FormSection>
-
       <div className="flex justify-end">
         <GenerateDocumentButton
           documentType="formularioCliente"
-          values={{ dni: values.dni, cuil: values.cuil, situacionLaboral: values.situacionLaboral }}
+          values={values}
           onGenerate={() =>
-            workflow.save({ dni: values.dni, cuil: values.cuil, situacionLaboral: values.situacionLaboral }, "generado").then(() => generateFormularioClientePdf({
+            workflow.save(values, "generado").then(() => generateFormularioClientePdf({
               dni: values.dni,
               cuil: values.cuil,
               situacionLaboral: values.situacionLaboral,
-              dniFrente: values.dniFrente,
-              dniDorso: values.dniDorso,
+              dniFrente: values.dniFrenteUrl,
+              dniDorso: values.dniDorsoUrl,
             }))
           }
         />

@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { Loader2, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { readDniFromImage, type DniData } from "@/lib/dniBarcode";
+import type { DniData } from "@/lib/dniBarcode";
+import { readDniPhotos } from "@/services/dniScanService";
 
 type DniScanButtonProps = {
   /** Recibe los datos leidos del DNI para completar el formulario. */
@@ -13,7 +14,7 @@ type Status = { kind: "ok" | "error"; message: string };
 
 /**
  * Saca (o elige) una foto del frente del DNI y completa nombre, numero, fecha de nacimiento
- * y CUIL leyendo el codigo de barras. La foto no se sube a ningun lado.
+ * y CUIL. Primero lee el codigo de barras; si no se puede, la lee la IA.
  */
 export function DniScanButton({ onRead, label = "Leer DNI desde una foto" }: DniScanButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,18 +26,14 @@ export function DniScanButton({ onRead, label = "Leer DNI desde una foto" }: Dni
     setBusy(true);
     setStatus(null);
     try {
-      const data = await readDniFromImage(file);
-      if (!data) {
-        setStatus({
-          kind: "error",
-          message: "No pude leer el código de barras. Sacá la foto del frente del DNI, de cerca, con buena luz y sin reflejos.",
-        });
-        return;
-      }
+      const { data, via } = await readDniPhotos([{ side: "frente", blob: file }]);
       onRead(data);
-      setStatus({ kind: "ok", message: `DNI leído: ${data.nombreCompleto} · ${data.dni}` });
-    } catch {
-      setStatus({ kind: "error", message: "No se pudo abrir la imagen. Probá con otra foto." });
+      setStatus({ kind: "ok", message: `DNI leído${via === "ia" ? " con IA (revisalo)" : ""}: ${data.nombreCompleto} · ${data.dni}` });
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        message: `${error instanceof Error ? error.message : "No se pudo leer el DNI."} Sacá la foto de cerca, con buena luz y sin reflejos.`,
+      });
     } finally {
       setBusy(false);
       // Permite volver a elegir la misma foto.

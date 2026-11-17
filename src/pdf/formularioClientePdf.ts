@@ -15,8 +15,16 @@ function normalizeImageForPdf(image: HTMLImageElement) {
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-async function fileToNormalizedImage(file?: File | null) {
-  if (!file) return null;
+/** Acepta el archivo elegido o el enlace de la foto ya guardada en el archivo. */
+async function fileToNormalizedImage(source?: Blob | string | null) {
+  if (!source) return null;
+  let file: Blob;
+  try {
+    file = typeof source === "string" ? await fetch(source).then((response) => response.blob()) : source;
+  } catch {
+    return null;
+  }
+  const name = typeof source === "string" ? decodeURIComponent(source.split("/").pop() ?? "foto.jpg") : source instanceof File ? source.name : "foto.jpg";
 
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -30,7 +38,7 @@ async function fileToNormalizedImage(file?: File | null) {
     image.onload = () =>
       resolve({
         dataUrl: normalizeImageForPdf(image),
-        name: file.name,
+        name,
       });
     image.onerror = reject;
     image.src = dataUrl;
@@ -41,8 +49,8 @@ export async function generateFormularioClientePdf(payload: {
   dni: string;
   cuil: string;
   situacionLaboral: string;
-  dniFrente?: File | null;
-  dniDorso?: File | null;
+  dniFrente?: Blob | string | null;
+  dniDorso?: Blob | string | null;
 }) {
   const doc = createPdf({ orientation: "portrait", unit: "mm", format: "a4" });
   const logoDataUrl = await loadImageDataUrl("/logo-jd-negro.png");

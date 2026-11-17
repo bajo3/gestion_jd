@@ -14,6 +14,9 @@
   "functions": {
     "api/boleto-scan.js": {
       "maxDuration": 60
+    },
+    "api/dni-scan.js": {
+      "maxDuration": 60
     }
   }
 }
