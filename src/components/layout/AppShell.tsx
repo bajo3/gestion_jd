@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   ScanText,
+  ScrollText,
   Search,
   ShieldAlert,
   StickyNote,
@@ -93,6 +94,7 @@ export function AppShell() {
         .sort((a, b) => b.to.length - a.to.length)
         .find((item) => isNavigationItemActive(location.pathname, item.to));
 
+      if (location.pathname === "/notas-version") return "Notas de versión";
       return currentItem?.label ?? "Gestion JD";
     },
     [location.pathname],
@@ -188,6 +190,21 @@ export function AppShell() {
             </NavLink>
           );
         })}
+        <NavLink
+          to="/notas-version"
+          onClick={() => setOpen(false)}
+          title={collapsed ? "Notas de versión" : undefined}
+          className={() =>
+            cn(
+              "mt-2 flex items-center rounded-xl px-3 py-1.5 text-xs font-medium transition",
+              collapsed ? "justify-center" : "gap-2",
+              location.pathname === "/notas-version" ? "bg-white/15 text-white" : "text-white/45 hover:bg-white/10 hover:text-white/80",
+            )
+          }
+        >
+          <ScrollText className="h-3.5 w-3.5 shrink-0" />
+          {collapsed ? null : <span className="whitespace-nowrap">Notas de versión</span>}
+        </NavLink>
       </nav>
 
       <div className="shrink-0 border-t border-white/10 p-3">

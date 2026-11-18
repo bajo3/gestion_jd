@@ -47,6 +47,7 @@ const VentasSeguimientosPage = lazy(() =>
   import("@/pages/ventas/VentasSeguimientosPage").then((m) => ({ default: m.VentasSeguimientosPage })),
 );
 const InfraccionesPage = lazy(() => import("@/pages/InfraccionesPage").then((m) => ({ default: m.InfraccionesPage })));
+const NotasVersionPage = lazy(() => import("@/pages/NotasVersionPage").then((m) => ({ default: m.NotasVersionPage })));
 const PendientesPage = lazy(() => import("@/pages/PendientesPage").then((m) => ({ default: m.PendientesPage })));
 const LeadsPage = lazy(() => import("@/pages/LeadsPage").then((m) => ({ default: m.LeadsPage })));
 const ConsultasPage = lazy(() => import("@/pages/ConsultasPage").then((m) => ({ default: m.ConsultasPage })));
@@ -102,6 +103,7 @@ export function Router() {
           <Route path="/lista-precios" element={<ListaPreciosPage />} />
           <Route path="/infracciones" element={<InfraccionesPage />} />
           <Route path="/pendientes" element={<PendientesPage />} />
+          <Route path="/notas-version" element={<NotasVersionPage />} />
           <Route path="/compra-venta" element={<ContextualDocument><CompraVentaPage /></ContextualDocument>} />
           <Route path="/autorizacion-conduccion" element={<ContextualDocument><AutorizacionPage /></ContextualDocument>} />
           <Route path="/datero" element={<ContextualDocument><DateroPage /></ContextualDocument>} />

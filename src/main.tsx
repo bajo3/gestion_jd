@@ -11,3 +11,10 @@ createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+// App instalable (PWA): solo en produccion, para no interferir con la recarga en desarrollo.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  const register = () => navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
+}

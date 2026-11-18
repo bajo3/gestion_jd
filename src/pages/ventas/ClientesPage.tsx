@@ -48,10 +48,11 @@ export function ClientesPage() {
       {!loading && filteredClients.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredClients.map((client) => (
-            <Card key={client.id} className="transition hover:-translate-y-0.5 hover:shadow-md">
+            <Link key={client.id} to={`/ventas/clientes/${encodeURIComponent(client.id)}`} className="group block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
+            <Card className="h-full transition group-hover:-translate-y-0.5 group-hover:border-violet-400 group-hover:bg-violet-100 group-hover:shadow-md">
               <CardContent className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="rounded-xl bg-fuchsia-50 p-3 text-fuchsia-600"><UserRound className="h-5 w-5" /></div>
+                  <div className="rounded-xl bg-fuchsia-50 p-3 text-fuchsia-600 group-hover:bg-violet-200 group-hover:text-violet-700"><UserRound className="h-5 w-5" /></div>
                   <div className="min-w-0">
                     <h2 className="truncate font-semibold text-slate-950">{client.nombre || "Sin nombre"}</h2>
                     <p className="text-sm text-slate-500">DNI {client.dni || "sin dato"}</p>
@@ -62,11 +63,12 @@ export function ClientesPage() {
                   <p className="truncate">{client.email || "Sin email"}</p>
                   <p>{client.localidad || client.domicilio || "Sin domicilio"}</p>
                 </div>
-                <Link to={`/ventas/clientes/${encodeURIComponent(client.id)}`} className="inline-flex items-center text-sm font-semibold text-fuchsia-700">
+                <span className="inline-flex items-center text-sm font-semibold text-fuchsia-700 group-hover:text-violet-700">
                   Abrir ficha completa <ArrowRight className="ml-1 h-4 w-4" />
-                </Link>
+                </span>
               </CardContent>
             </Card>
+            </Link>
           ))}
         </div>
       ) : null}
