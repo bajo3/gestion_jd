@@ -9,8 +9,8 @@ type DniPhotosProps = {
   dorsoUrl: string;
   /** Guarda el enlace de la foto subida ("" al quitarla). */
   onChange: (side: DniSide, url: string) => void;
-  /** Recibe los datos leidos del DNI para completar el formulario. */
-  onRead: (data: DniData) => void;
+  /** Recibe los datos leidos del DNI para completar el formulario. Sin esto, solo guarda las fotos. */
+  onRead?: (data: DniData) => void;
 };
 
 type Status = { kind: "ok" | "error" | "info"; message: string };
@@ -40,6 +40,7 @@ export function DniPhotos({ frenteUrl, dorsoUrl, onChange, onRead }: DniPhotosPr
   const urls: Record<DniSide, string> = { frente: frenteUrl, dorso: dorsoUrl };
 
   const read = async (fresh?: DniPhoto) => {
+    if (!onRead) return;
     setReading(true);
     setStatus({ kind: "info", message: "Leyendo los datos del DNI…" });
     try {
@@ -78,7 +79,8 @@ export function DniPhotos({ frenteUrl, dorsoUrl, onChange, onRead }: DniPhotosPr
       local.current[side] = photo;
       onChange(side, url);
       setUploading(null);
-      await read({ side, blob: photo });
+      if (onRead) await read({ side, blob: photo });
+      else setStatus({ kind: "ok", message: `Foto del ${side} guardada.` });
     } catch (error) {
       setStatus({ kind: "error", message: error instanceof Error ? error.message : "No se pudo guardar la foto." });
     } finally {
@@ -140,7 +142,7 @@ export function DniPhotos({ frenteUrl, dorsoUrl, onChange, onRead }: DniPhotosPr
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        {frenteUrl || dorsoUrl ? (
+        {onRead && (frenteUrl || dorsoUrl) ? (
           <Button variant="outline" disabled={busy} onClick={() => void read()}>
             {reading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
             {reading ? "Leyendo…" : "Volver a leer los datos"}

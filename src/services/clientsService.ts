@@ -37,7 +37,12 @@ function clientFromDatero(values: DateroFormValues, existing?: Client): Client {
     estadoCivil: values.estadoCivil,
     condicionFiscal: values.condicionFiscal,
     fechaNacimiento: values.fechaNacimiento,
-    data: { ...values },
+    // Las fotos del DNI quedan en el cliente aunque un datero nuevo no las traiga.
+    data: {
+      ...values,
+      dniFrenteUrl: values.dniFrenteUrl || String(existing?.data?.dniFrenteUrl ?? ""),
+      dniDorsoUrl: values.dniDorsoUrl || String(existing?.data?.dniDorsoUrl ?? ""),
+    },
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
@@ -147,6 +152,21 @@ export async function saveDateroWorkflow(values: DateroFormValues, options: { op
     }
   }
   return { client, operation, persistenceMode, warning };
+}
+
+/** Guarda en la ficha del cliente los enlaces a las fotos del DNI (frente y dorso). */
+export async function saveClientDniPhotos(client: Client, photos: { dniFrenteUrl: string; dniDorsoUrl: string }) {
+  const updated: Client = { ...client, data: { ...client.data, ...photos }, updatedAt: new Date().toISOString() };
+  writeStorage(CLIENTS_KEY, [...localClients().filter((item) => item.id !== client.id), updated]);
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase
+      .from("gestion_jd_clients")
+      .update({ data: updated.data, updated_at: updated.updatedAt })
+      .eq("id", client.id)
+      .eq("app_source", APP_SOURCE);
+    if (error) throw new Error(`No se pudo guardar el DNI en el cliente: ${error.message}`);
+  }
+  return updated;
 }
 
 export async function saveClientDocument(input: Omit<ClientDocument, "id" | "createdAt" | "updatedAt"> & { id?: string }) {

@@ -1,6 +1,24 @@
 import type { DateroFormValues } from "@/types/forms";
 import { createPdf, drawPdfLogo, loadImageDataUrl, sanitizeFileName, savePdf } from "./common";
 
+/** Abre la foto guardada y devuelve sus datos y medidas para ubicarla en la hoja. */
+async function loadPhoto(url?: string) {
+  if (!url) return null;
+  const dataUrl = await loadImageDataUrl(url);
+  if (!dataUrl) return null;
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = reject;
+      element.src = dataUrl;
+    });
+    return { dataUrl, width: image.naturalWidth, height: image.naturalHeight };
+  } catch {
+    return null;
+  }
+}
+
 export async function generateDateroPdf(values: DateroFormValues) {
   const doc = createPdf();
 
@@ -133,6 +151,41 @@ export async function generateDateroPdf(values: DateroFormValues) {
   doc.setTextColor(120);
   doc.text("Generado por Jesus Diaz Automotores", 105, 285, { align: "center" });
   doc.setTextColor(0);
+
+  // Hoja aparte con las fotos del DNI, lista para imprimir junto al datero.
+  const photos = (
+    await Promise.all([
+      loadPhoto(values.dniFrenteUrl).then((photo) => (photo ? { title: "DNI frente", ...photo } : null)),
+      loadPhoto(values.dniDorsoUrl).then((photo) => (photo ? { title: "DNI dorso", ...photo } : null)),
+    ])
+  ).filter((photo): photo is NonNullable<typeof photo> => Boolean(photo));
+
+  if (photos.length) {
+    doc.addPage();
+    drawPdfLogo(doc, logo, L, 8, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("DOCUMENTO DEL COMPRADOR", 105, 26, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text([values.nombre, values.dni ? `DNI ${values.dni}` : ""].filter(Boolean).join(" - "), 105, 33, { align: "center" });
+
+    // Un poco mas grande que el DNI real (85 x 54 mm) para que se lea bien al imprimir.
+    const maxW = 105;
+    const maxH = 75;
+    let top = 42;
+    for (const photo of photos) {
+      const scale = Math.min(maxW / photo.width, maxH / photo.height);
+      const width = photo.width * scale;
+      const height = photo.height * scale;
+      const x = 105 - width / 2;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(photo.title, x, top);
+      doc.addImage(photo.dataUrl, "JPEG", x, top + 3, width, height);
+      top += height + 14;
+    }
+  }
 
   return savePdf(doc, `datero_${sanitizeFileName(values.nombre || "sin_nombre")}.pdf`);
 }

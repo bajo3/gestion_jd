@@ -1,13 +1,14 @@
 import { DniPhotoLinks } from "@/components/documents/DniPhotoLinks";
+import { DniPhotos } from "@/components/documents/DniPhotos";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CarFront, ExternalLink, FileText, Loader2, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
+import { ArrowLeft, CarFront, ExternalLink, FileText, IdCard, Loader2, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { documentTypeLabel, getClientHistory, listClients, listFinalizedSales } from "@/services/clientsService";
+import { documentTypeLabel, getClientHistory, listClients, listFinalizedSales, saveClientDniPhotos } from "@/services/clientsService";
 import { searchConsultas, type ConsultaDocument } from "@/services/consultasService";
 import { listVehicles } from "@/services/vehiclesService";
 import type { Client, ClientDocument, ClientOperation, FinalizedSale } from "@/types/clients";
@@ -31,6 +32,48 @@ type ClientProfileData = {
   sales: FinalizedSale[];
   vehicles: Vehicle[];
 };
+
+function text(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+/** Fotos del DNI de la ficha; si el cliente todavia no las tiene, las del ultimo documento que las traiga. */
+function clientDniPhotos(client: Client, documents: ClientDocument[]) {
+  const fromDocument = [...documents]
+    .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt))
+    .find((document) => text(document.data.dniFrenteUrl) || text(document.data.dniDorsoUrl));
+  return {
+    dniFrenteUrl: text(client.data?.dniFrenteUrl) || text(fromDocument?.data.dniFrenteUrl),
+    dniDorsoUrl: text(client.data?.dniDorsoUrl) || text(fromDocument?.data.dniDorsoUrl),
+  };
+}
+
+function ClientDniCard({ client, documents, onSaved }: { client: Client; documents: ClientDocument[]; onSaved: (client: Client) => void }) {
+  const photos = clientDniPhotos(client, documents);
+  const [error, setError] = useState("");
+
+  const change = async (side: "frente" | "dorso", url: string) => {
+    setError("");
+    try {
+      onSaved(await saveClientDniPhotos(client, { ...photos, [side === "frente" ? "dniFrenteUrl" : "dniDorsoUrl"]: url }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "No se pudo guardar el DNI.");
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-2">
+          <IdCard className="h-5 w-5 text-fuchsia-600" />
+          <h2 className="text-lg font-semibold text-slate-950">DNI</h2>
+        </div>
+        <DniPhotos frenteUrl={photos.dniFrenteUrl} dorsoUrl={photos.dniDorsoUrl} onChange={(side, url) => void change(side, url)} />
+        {error ? <p className="text-sm text-amber-700">{error}</p> : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 function documentUrl(document: ClientDocument) {
   const path = editorPaths[document.documentType] ?? "/ventas/documentos";
@@ -155,6 +198,8 @@ export function ClienteDetallePage() {
       </div>
 
       <Card><CardContent className="space-y-4"><div className="flex items-center gap-2"><UserRound className="h-5 w-5 text-fuchsia-600" /><h2 className="text-lg font-semibold text-slate-950">Datos del cliente</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">{[["DNI", client.dni], ["CUIL / CUIT", client.cuil], ["Teléfono", client.telefono || client.celular], ["Email", client.email], ["Domicilio", client.domicilio], ["Localidad", client.localidad], ["Provincia", client.provincia], ["Estado civil", client.estadoCivil], ["Condición fiscal", client.condicionFiscal], ["Fecha de nacimiento", client.fechaNacimiento ? formatDate(client.fechaNacimiento) : ""]].map(([label, value]) => <div key={label}><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</dt><dd className="mt-1 break-words text-slate-800">{value || "Sin dato"}</dd></div>)}</dl></CardContent></Card>
+
+      <ClientDniCard client={client} documents={documents} onSaved={(updated) => setProfile((current) => (current ? { ...current, client: updated } : current))} />
 
       <Card><CardContent className="space-y-4"><div><h2 className="text-lg font-semibold text-slate-950">Ventas registradas</h2><p className="text-sm text-slate-500">Ventas vinculadas a operaciones finalizadas y ventas históricas asociadas por cliente.</p></div>{finishedSales.length ? <div className="space-y-3">{finishedSales.map((sale) => <div key={sale.operationId} className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-950">{sale.vehicleLabel}</p><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">Vendida</Badge>{sale.source === "vehicle_history" ? <Badge className="border-slate-200 bg-slate-50 text-slate-600">Histórica</Badge> : <Badge className="border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700">Operación finalizada</Badge>}{sale.hasCredit ? <Badge className="border-blue-200 bg-blue-50 text-blue-700">Con crédito</Badge> : null}</div><p className="text-sm text-slate-500">{sale.licensePlate || "Sin dominio"} · {formatDate(sale.saleDate)}</p></div><div className="flex items-center gap-3">{sale.salePrice ? <span className="font-semibold text-slate-900">{formatCurrency(sale.salePrice)}</span> : <span className="text-sm text-slate-500">Precio sin cargar</span>}<Link to={`/autos/${sale.vehicleId}`}><Button variant="outline">Ver auto</Button></Link></div></div>)}</div> : <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No hay ventas finalizadas asociadas a este cliente.</p>}</CardContent></Card>
 
