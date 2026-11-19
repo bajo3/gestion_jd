@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Download,
   FileSpreadsheet,
   FileText,
   Home,
@@ -21,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { logout } from "@/lib/auth";
+import { useInstallApp } from "@/lib/installPrompt";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { listVehiclesWithMissingSaleData } from "@/lib/saleMissingData";
@@ -74,6 +76,23 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [missingSales, setMissingSales] = useState(0);
+  const installApp = useInstallApp();
+
+  const handleInstall = async () => {
+    if (installApp.needsInstructions) {
+      window.alert(
+        [
+          "Para instalar Gestión JD en el iPhone:",
+          "",
+          "1. Tocá el botón Compartir de Safari (el cuadrado con la flecha).",
+          "2. Elegí “Agregar a pantalla de inicio”.",
+          "3. Tocá “Agregar”.",
+        ].join("\n"),
+      );
+      return;
+    }
+    await installApp.install();
+  };
 
   // Contador rojo en "Ventas": autos vendidos con datos sin cargar.
   useEffect(() => {
@@ -208,6 +227,19 @@ export function AppShell() {
       </nav>
 
       <div className="shrink-0 border-t border-white/10 p-3">
+        {installApp.available ? (
+          <Button
+            className={cn(
+              "mb-2 w-full bg-[#ff0a8a] text-white hover:bg-[#e00079]",
+              collapsed ? "justify-center px-0" : "justify-start",
+            )}
+            onClick={() => void handleInstall()}
+            title={collapsed ? "Instalar app" : undefined}
+          >
+            <Download className={cn("h-4 w-4 shrink-0", collapsed ? "" : "mr-2")} />
+            <span className={cn("transition-all", collapsed ? "hidden" : "inline")}>Instalar app</span>
+          </Button>
+        ) : null}
         <Button
           variant="secondary"
           className={cn(

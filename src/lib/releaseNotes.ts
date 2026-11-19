@@ -14,6 +14,7 @@ export const releaseNotes: ReleaseNote[] = [
     title: "App instalable y DNI en el cliente",
     items: [
       "Gestión JD se puede instalar en el celular y en la PC como una app, con su ícono y a pantalla completa.",
+      "Botón Instalar app en el menú, arriba de Cerrar sesión (en iPhone explica cómo agregarla a la pantalla de inicio).",
       "Nueva sección Notas de versión con las mejoras de cada actualización.",
       "En Clientes, toda la tarjeta abre la ficha y se pinta de violeta al pasar el mouse.",
       "El PDF del Datero suma una hoja con la foto del frente y el dorso del DNI, lista para imprimir.",
