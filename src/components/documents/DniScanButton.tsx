@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Loader2, ScanLine } from "lucide-react";
+import { ImageUp, Loader2, ScanLine } from "lucide-react";
+import { openPicker } from "@/components/documents/DniPhotos";
 import { Button } from "@/components/ui/button";
 import type { DniData } from "@/lib/dniBarcode";
 import { readDniPhotos } from "@/services/dniScanService";
@@ -50,10 +51,14 @@ export function DniScanButton({ onRead, label = "Leer DNI desde una foto" }: Dni
         className="hidden"
         onChange={(event) => void handleFile(event.target.files?.[0])}
       />
-      <div>
-        <Button variant="outline" disabled={busy} onClick={() => inputRef.current?.click()}>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={busy} onClick={() => openPicker(inputRef.current, true)}>
           {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
           {busy ? "Leyendo el DNI…" : label}
+        </Button>
+        <Button variant="outline" disabled={busy} onClick={() => openPicker(inputRef.current, false)}>
+          <ImageUp className="mr-2 h-4 w-4" />
+          Subir foto
         </Button>
       </div>
       {status ? (

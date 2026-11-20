@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Camera, Loader2, ScanLine, X } from "lucide-react";
+import { Camera, ImageUp, Loader2, ScanLine, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { DniData } from "@/lib/dniBarcode";
 import { readDniPhotos, shrinkPhoto, uploadDniPhoto, type DniPhoto, type DniSide } from "@/services/dniScanService";
@@ -16,6 +16,14 @@ type DniPhotosProps = {
 type Status = { kind: "ok" | "error" | "info"; message: string };
 
 const labels: Record<DniSide, string> = { frente: "DNI frente", dorso: "DNI dorso" };
+
+/** Abre la camara o la galeria segun el boton (el atributo capture fuerza la camara en el celular). */
+export function openPicker(input: HTMLInputElement | null, camera: boolean) {
+  if (!input) return;
+  if (camera) input.setAttribute("capture", "environment");
+  else input.removeAttribute("capture");
+  input.click();
+}
 
 async function photoFromUrl(side: DniSide, url: string): Promise<DniPhoto | null> {
   try {
@@ -127,15 +135,28 @@ export function DniPhotos({ frenteUrl, dorsoUrl, onChange, onRead }: DniPhotosPr
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => inputs[side].current?.click()}
-                className="flex h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100 disabled:opacity-60"
-              >
-                {uploading === side ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
-                {uploading === side ? "Guardando foto…" : `Sacar o elegir foto del ${side}`}
-              </button>
+              <div className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+                {uploading === side ? (
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    Guardando foto…
+                  </>
+                ) : (
+                  <>
+                    <span>Foto del {side}</span>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <Button variant="outline" disabled={busy} onClick={() => openPicker(inputs[side].current, true)}>
+                        <Camera className="mr-2 h-4 w-4" />
+                        Sacar foto
+                      </Button>
+                      <Button variant="outline" disabled={busy} onClick={() => openPicker(inputs[side].current, false)}>
+                        <ImageUp className="mr-2 h-4 w-4" />
+                        Subir foto
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         ))}
