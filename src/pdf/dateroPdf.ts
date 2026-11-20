@@ -170,9 +170,9 @@ export async function generateDateroPdf(values: DateroFormValues) {
     doc.setFontSize(11);
     doc.text([values.nombre, values.dni ? `DNI ${values.dni}` : ""].filter(Boolean).join(" - "), 105, 33, { align: "center" });
 
-    // Un poco mas grande que el DNI real (85 x 54 mm) para que se lea bien al imprimir.
-    const maxW = 105;
-    const maxH = 75;
+    // Ocupa toda la hoja: ancho completo y la altura repartida entre las fotos.
+    const maxW = 180;
+    const maxH = (285 - 42) / photos.length - 12;
     let top = 42;
     for (const photo of photos) {
       const scale = Math.min(maxW / photo.width, maxH / photo.height);
