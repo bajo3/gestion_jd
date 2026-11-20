@@ -108,7 +108,6 @@ export function DniPhotos({ frenteUrl, dorsoUrl, onChange, onRead }: DniPhotosPr
               ref={inputs[side]}
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={(event) => void handleFile(side, event.target.files?.[0])}
             />

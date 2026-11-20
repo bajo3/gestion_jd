@@ -13,7 +13,7 @@ type DniScanButtonProps = {
 type Status = { kind: "ok" | "error"; message: string };
 
 /**
- * Saca (o elige) una foto del frente del DNI y completa nombre, numero, fecha de nacimiento
+ * Saca o sube una foto del frente del DNI y completa nombre, numero, fecha de nacimiento
  * y CUIL. Primero lee el codigo de barras; si no se puede, la lee la IA.
  */
 export function DniScanButton({ onRead, label = "Leer DNI desde una foto" }: DniScanButtonProps) {
@@ -47,7 +47,6 @@ export function DniScanButton({ onRead, label = "Leer DNI desde una foto" }: Dni
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(event) => void handleFile(event.target.files?.[0])}
       />
