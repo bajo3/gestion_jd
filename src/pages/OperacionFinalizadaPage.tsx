@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, ChevronDown } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -288,23 +288,11 @@ export function OperacionFinalizadaPage() {
             </FormGrid>
           </div> : null}
           {withCredit ? <p className="text-sm text-slate-500">El crédito arranca en la fecha de venta y vence el día {dayOfMonth(values.creditoFechaInicio || values.fecha) || "—"} de cada mes. Podés cambiarlo en “Más datos”.</p> : null}
-
-          {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
-          {finalized ? <p className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800" role="status"><CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /><span>Venta registrada: el auto quedó como vendido y se crearon los seguimientos de postventa.{paintedMessage ? ` ${paintedMessage}` : ""}</span></p> : null}
-          {notice ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</p> : null}
-
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => void generateOperacionFinalizadaPdf(values)}>Descargar PDF</Button>
-            <Button className="px-6 py-3 text-base" disabled={loading || finalized} onClick={() => void finalize()}>{loading ? "Finalizando…" : finalized ? <><CheckCircle2 className="mr-2 h-4 w-4" />Venta finalizada</> : "Finalizar venta"}</Button>
-          </div>
         </CardContent>
       </Card>
 
-      <details className="group rounded-2xl border border-slate-200 bg-white">
-        <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold text-slate-700">
-          Más datos (opcionales, salen en el PDF)
-          <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
-        </summary>
+      <section className="rounded-2xl border border-slate-200 bg-white">
+        <h2 className="p-4 text-sm font-semibold text-slate-700">Más datos (opcionales, salen en el PDF)</h2>
         <div className="space-y-6 border-t border-slate-200 p-4">
           <FormGrid>
             {hasContext ? <>
@@ -332,12 +320,19 @@ export function OperacionFinalizadaPage() {
             <FormField label="Transferencia"><CurrencyInput value={values.transferencia} onChange={(value) => form.set("transferencia", value)} /></FormField>
             <FormField label="Detalles"><Textarea value={values.detalles} onChange={(event) => form.set("detalles", event.target.value)} /></FormField>
           </FormGrid>
-          <div className="flex flex-wrap justify-end gap-3">
-            {presupuestoQuery ? <Link to={`/presupuesto-cliente${presupuestoQuery}`}><Button variant="outline">Generar presupuesto</Button></Link> : null}
-            {hasContext ? <Button variant="outline" disabled={loading} onClick={() => void flow.commit(values, { documentId: workflow.saved?.id, status: "borrador" })}>Guardar borrador</Button> : null}
-          </div>
         </div>
-      </details>
+      </section>
+
+      {error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
+      {finalized ? <p className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800" role="status"><CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /><span>Venta registrada: el auto quedó como vendido y se crearon los seguimientos de postventa.{paintedMessage ? ` ${paintedMessage}` : ""}</span></p> : null}
+      {notice ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</p> : null}
+
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {presupuestoQuery ? <Link to={`/presupuesto-cliente${presupuestoQuery}`}><Button variant="outline">Generar presupuesto</Button></Link> : null}
+        {hasContext ? <Button variant="outline" disabled={loading} onClick={() => void flow.commit(values, { documentId: workflow.saved?.id, status: "borrador" })}>Guardar borrador</Button> : null}
+        <Button variant="ghost" onClick={() => void generateOperacionFinalizadaPdf(values)}>Descargar PDF</Button>
+        <Button className="px-6 py-3 text-base" disabled={loading || finalized} onClick={() => void finalize()}>{loading ? "Finalizando…" : finalized ? <><CheckCircle2 className="mr-2 h-4 w-4" />Venta finalizada</> : "Finalizar venta"}</Button>
+      </div>
     </DocumentPage>
   );
 }
